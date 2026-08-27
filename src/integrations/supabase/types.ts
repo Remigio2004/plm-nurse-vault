@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_logs: {
+        Row: {
+          action: string
+          details: Json | null
+          id: string
+          performed_by: string | null
+          performed_by_email: string | null
+          record_id: string | null
+          record_summary: string
+          timestamp: string
+        }
+        Insert: {
+          action: string
+          details?: Json | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          record_id?: string | null
+          record_summary: string
+          timestamp?: string
+        }
+        Update: {
+          action?: string
+          details?: Json | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          record_id?: string | null
+          record_summary?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      records: {
+        Row: {
+          batch: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          status: string
+          storage_path: string
+          student_category: string
+          student_name: string
+          student_number: string
+          updated_at: string
+          uploaded_at: string
+        }
+        Insert: {
+          batch: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          status: string
+          storage_path: string
+          student_category: string
+          student_name: string
+          student_number: string
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Update: {
+          batch?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          status?: string
+          storage_path?: string
+          student_category?: string
+          student_name?: string
+          student_number?: string
+          updated_at?: string
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
