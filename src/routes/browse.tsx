@@ -120,7 +120,7 @@ function BrowsePage() {
 
   const folders = useMemo(() => {
     if (path.length >= 3) return [];
-    const key = (["batch", "category", "status"] as const)[path.length];
+    const key = (["batch", "category", "status"] as const)[path.length] ?? "batch";
     const names = Array.from(new Set(scoped.map((r) => r[key]))).sort();
     return names.map((name) => ({
       name,
