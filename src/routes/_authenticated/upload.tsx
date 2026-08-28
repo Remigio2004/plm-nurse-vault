@@ -14,11 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/records";
-import { useVault } from "@/lib/vault-store";
+import type { RecordStatus, StudentCategory } from "@/data/records";
+import { useCreateRecord } from "@/lib/use-records";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/upload")({
+export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
     meta: [
       { title: "Upload Record — NurseVault" },
@@ -37,16 +37,11 @@ export const Route = createFileRoute("/upload")({
   component: UploadPage,
 });
 
-const extToType = (name: string): StudentRecord["fileType"] => {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv")) return "xlsx";
-  if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "docx";
-  return "pdf";
-};
+const MAX_SIZE = 25 * 1024 * 1024;
 
 function UploadPage() {
-  const { addRecord } = useVault();
   const navigate = useNavigate();
+  const createRecord = useCreateRecord();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [studentName, setStudentName] = useState("");
@@ -54,37 +49,45 @@ function UploadPage() {
   const [batch, setBatch] = useState("");
   const [category, setCategory] = useState<StudentCategory | "">("");
   const [status, setStatus] = useState<RecordStatus | "">("");
-  const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
+  const submitting = createRecord.isPending;
   const ready =
-    studentName.trim() && studentNumber.trim() && batch.trim() && category && status && fileName;
+    studentName.trim() && studentNumber.trim() && batch.trim() && category && status && file;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const pickFile = (selected: File | undefined | null) => {
+    if (!selected) return;
+    if (selected.size > MAX_SIZE) {
+      toast.error("File too large", { description: "Scanned records must be 25 MB or smaller." });
+      return;
+    }
+    setFile(selected);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready) {
+    if (!ready || !file) {
       toast.error("Please complete all fields and attach a scanned record.");
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      addRecord({
+    try {
+      await createRecord.mutateAsync({
         studentName: studentName.trim(),
         studentNumber: studentNumber.trim(),
         batch: batch.trim(),
         category: category as StudentCategory,
         status: status as RecordStatus,
-        fileName,
-        fileType: extToType(fileName),
+        file,
       });
       toast.success("Record uploaded", {
         description: `${studentName.trim()} filed under ${batch.trim()} → ${category} → ${status}.`,
         icon: <CheckCircle2 className="h-4 w-4" />,
       });
-      setSubmitting(false);
       navigate({ to: "/browse" });
-    }, 700);
+    } catch {
+      // error toast handled in the mutation
+    }
   };
 
   return (
@@ -172,8 +175,7 @@ function UploadPage() {
               onDrop={(e) => {
                 e.preventDefault();
                 setDragging(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) setFileName(file.name);
+                pickFile(e.dataTransfer.files?.[0]);
               }}
               onClick={() => inputRef.current?.click()}
               role="button"
@@ -198,23 +200,20 @@ function UploadPage() {
                 type="file"
                 accept=".pdf,.doc,.docx,.xls,.xlsx"
                 className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setFileName(file.name);
-                }}
+                onChange={(e) => pickFile(e.target.files?.[0])}
               />
             </div>
 
-            {fileName && (
+            {file && (
               <div className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
                 <FileUp className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{fileName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{file.name}</span>
                 <button
                   type="button"
                   aria-label="Remove file"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setFileName("");
+                    setFile(null);
                   }}
                   className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
