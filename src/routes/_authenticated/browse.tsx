@@ -48,7 +48,7 @@ import type { StudentRecord } from "@/data/records";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/browse")({
+export const Route = createFileRoute("/_authenticated/browse")({
   head: () => ({
     meta: [
       { title: "Browse Folders — NurseVault" },
