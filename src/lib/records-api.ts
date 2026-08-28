@@ -64,7 +64,7 @@ export async function logAudit(params: {
     record_summary: params.recordSummary,
     performed_by: user.id,
     performed_by_email: user.email ?? null,
-    details: params.details ?? null,
+    details: (params.details ?? null) as never,
   });
   if (error) throw error;
 }
@@ -85,7 +85,7 @@ export async function createRecord(input: {
 
   const upload = await supabase.storage
     .from(RECORDS_BUCKET)
-    .upload(storagePath, input.file, { contentType: input.file.type || undefined });
+    .upload(storagePath, input.file, input.file.type ? { contentType: input.file.type } : {});
   if (upload.error) throw upload.error;
 
   const { data, error } = await supabase
@@ -139,7 +139,10 @@ export async function updateRecord(
   }
   if (Object.keys(payload).length === 0) return;
 
-  const { error } = await supabase.from("records").update(payload).eq("id", record.id);
+  const { error } = await supabase
+    .from("records")
+    .update(payload as never)
+    .eq("id", record.id);
   if (error) throw error;
 
   await logAudit({
