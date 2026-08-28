@@ -18,7 +18,7 @@ import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/record
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/upload")({
+export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
     meta: [
       { title: "Upload Record — NurseVault" },

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { TOTAL_BATCHES_DISPLAY, TOTAL_RECORDS_DISPLAY, type StudentRecord } from "@/data/records";
 import { useVault } from "@/lib/vault-store";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — NurseVault Records Office" },
