@@ -49,7 +49,52 @@ export function AppShell({
 }) {
   const { search, setSearch } = useVault();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [warning, setWarning] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const lastActivity = useRef(Date.now());
+
+  const signOut = useCallback(async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/", replace: true });
+  }, [navigate, queryClient]);
+
+  const stayActive = useCallback(() => {
+    lastActivity.current = Date.now();
+    setWarning(false);
+  }, []);
+
+  useEffect(() => {
+    const events = ["mousedown", "keydown", "touchstart", "scroll", "focus"] as const;
+    const onActivity = () => {
+      lastActivity.current = Date.now();
+    };
+    events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }));
+
+    const interval = window.setInterval(() => {
+      const idle = Date.now() - lastActivity.current;
+      if (idle >= IDLE_LIMIT_MS) {
+        void signOut();
+        return;
+      }
+      const remaining = IDLE_LIMIT_MS - idle;
+      if (remaining <= WARNING_MS) {
+        setWarning(true);
+        setSecondsLeft(Math.max(1, Math.ceil(remaining / 1000)));
+      } else {
+        setWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, onActivity));
+      window.clearInterval(interval);
+    };
+  }, [signOut]);
+
 
   const sidebar = (
     <div className="flex h-full w-72 flex-col border-r border-sidebar-border bg-sidebar">
