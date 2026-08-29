@@ -103,7 +103,10 @@ function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  defaultValue="records.office@plm.edu.ph"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                   placeholder="you@plm.edu.ph"
                 />
