@@ -155,18 +155,36 @@ function BrowsePage() {
       prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
     );
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
-    removeRecord(pendingDelete.id);
-    toast.success("Record removed", { description: pendingDelete.fileName });
+    const target = pendingDelete;
     setPendingDelete(null);
+    await deleteMutation.mutateAsync(target).then(
+      () => toast.success("Record deleted", { description: target.fileName }),
+      () => undefined,
+    );
   };
 
-  const confirmRename = () => {
+  const confirmRename = async () => {
     if (!renaming || !renameValue.trim()) return;
-    renameRecord(renaming.id, renameValue.trim());
-    toast.success("Record renamed", { description: renameValue.trim() });
+    const target = renaming;
+    const fileName = renameValue.trim();
     setRenaming(null);
+    await updateMutation.mutateAsync({ record: target, patch: { fileName } }).then(
+      () => toast.success("Record renamed", { description: fileName }),
+      () => undefined,
+    );
+  };
+
+  const openFile = async (record: StudentRecord) => {
+    try {
+      const url = await createSignedUrl(record);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error("Could not open file", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
   };
 
   return (
