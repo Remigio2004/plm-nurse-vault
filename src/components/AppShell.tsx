@@ -135,15 +135,15 @@ export function AppShell({
 
       <div className="p-4">
         <div className="mb-4 rounded-xl bg-primary-soft p-3">
-          <p className="text-xs font-semibold text-primary">Archival Prototype</p>
+          <p className="text-xs font-semibold text-primary">Secure session</p>
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            Demo data only — nothing is stored permanently.
+            You will be signed out automatically after 15 minutes of inactivity.
           </p>
         </div>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => navigate({ to: "/" })}
+          onClick={() => void signOut()}
         >
           <LogOut className="h-[18px] w-[18px]" />
           Log out
