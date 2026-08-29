@@ -204,6 +204,32 @@ export function AppShell({
 
         <main className={cn("flex-1 px-5 py-6 sm:px-8 sm:py-8")}>{children}</main>
       </div>
+
+      <Dialog open={warning} onOpenChange={(open) => !open && stayActive()}>
+        <DialogContent className="rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ShieldAlert className="h-5 w-5 text-gold-foreground" />
+              Session about to expire
+            </DialogTitle>
+            <DialogDescription>
+              For record security you will be signed out in {secondsLeft}{" "}
+              {secondsLeft === 1 ? "second" : "seconds"} due to inactivity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => void signOut()}>
+              Log out now
+            </Button>
+            <Button
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+              onClick={stayActive}
+            >
+              Stay signed in
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
