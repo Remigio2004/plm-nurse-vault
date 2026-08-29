@@ -187,9 +187,28 @@ function BrowsePage() {
     }
   };
 
+  if (isLoading || isError) {
+    return (
+      <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
+        {isError ? (
+          <p className="vault-card p-10 text-center text-sm text-destructive">
+            Could not load records. Please refresh and try again.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="vault-card h-28 animate-pulse bg-muted/40 p-5" />
+            ))}
+          </div>
+        )}
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
       <Tabs defaultValue="folders" className="space-y-6">
+
         <TabsList className="rounded-xl bg-muted p-1">
           <TabsTrigger value="folders" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
             Folder View
