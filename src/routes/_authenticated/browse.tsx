@@ -541,14 +541,22 @@ function BrowsePage() {
           <DialogHeader>
             <DialogTitle className="text-base">{preview?.fileName}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-12 text-center">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
               <FileText className="h-8 w-8 text-gold-foreground" />
             </span>
-            <p className="mt-4 text-sm font-medium text-foreground">Mock document preview</p>
+            <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Rendering is disabled in this prototype.
+              Opens through a signed link that expires after 60 seconds.
             </p>
+            {preview && (
+              <Button
+                className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+                onClick={() => void openFile(preview)}
+              >
+                Open file
+              </Button>
+            )}
           </div>
           {preview && (
             <dl className="grid grid-cols-2 gap-3 text-sm">
