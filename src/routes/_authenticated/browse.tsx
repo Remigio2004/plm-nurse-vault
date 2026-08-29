@@ -87,7 +87,11 @@ function matches(record: StudentRecord, query: string) {
 }
 
 function BrowsePage() {
-  const { records, search, removeRecord, renameRecord } = useVault();
+  const { search } = useVault();
+  const { data, isLoading, isError } = useRecords();
+  const records: StudentRecord[] = data ?? [];
+  const updateMutation = useUpdateRecord();
+  const deleteMutation = useDeleteRecord();
 
   const [path, setPath] = useState<string[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
