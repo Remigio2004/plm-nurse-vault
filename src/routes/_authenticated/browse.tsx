@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { StudentRecord } from "@/data/records";
+import { createSignedUrl } from "@/lib/records-api";
+import { useDeleteRecord, useRecords, useUpdateRecord } from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
