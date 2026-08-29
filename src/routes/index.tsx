@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Lock, Mail, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import seal from "@/assets/plm-con-seal.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,11 +31,30 @@ export const Route = createFileRoute("/")({
 function LoginPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSignIn = (e: React.FormEvent) => {
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session) navigate({ to: "/dashboard", replace: true });
+    });
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    setTimeout(() => navigate({ to: "/dashboard" }), 550);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) {
+      toast.error("Sign in failed", { description: error.message });
+      return;
+    }
+    navigate({ to: "/dashboard", replace: true });
   };
 
   return (
@@ -82,7 +103,10 @@ function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  defaultValue="records.office@plm.edu.ph"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                   placeholder="you@plm.edu.ph"
                 />
@@ -98,7 +122,10 @@ function LoginPage() {
                 <Input
                   id="password"
                   type="password"
-                  defaultValue="demo-password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                   placeholder="••••••••"
                 />
