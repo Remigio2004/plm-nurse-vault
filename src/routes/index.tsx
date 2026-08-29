@@ -122,7 +122,10 @@ function LoginPage() {
                 <Input
                   id="password"
                   type="password"
-                  defaultValue="demo-password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                   placeholder="••••••••"
                 />
