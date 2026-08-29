@@ -1,10 +1,28 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FolderTree, LayoutDashboard, LogOut, Search, Upload, Menu } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import {
+  FolderTree,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Search,
+  ShieldAlert,
+  Upload,
+  Menu,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import seal from "@/assets/plm-con-seal.png";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +30,11 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/upload", label: "Upload Record", icon: Upload },
   { to: "/browse", label: "Browse Folders", icon: FolderTree },
+  { to: "/activity", label: "Activity Log", icon: History },
 ] as const;
+
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
+const WARNING_MS = 60 * 1000;
 
 export function AppShell({
   title,
