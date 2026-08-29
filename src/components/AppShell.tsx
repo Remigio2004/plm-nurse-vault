@@ -1,10 +1,28 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FolderTree, LayoutDashboard, LogOut, Search, Upload, Menu } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import {
+  FolderTree,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Search,
+  ShieldAlert,
+  Upload,
+  Menu,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import seal from "@/assets/plm-con-seal.png";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +30,11 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/upload", label: "Upload Record", icon: Upload },
   { to: "/browse", label: "Browse Folders", icon: FolderTree },
+  { to: "/activity", label: "Activity Log", icon: History },
 ] as const;
+
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
+const WARNING_MS = 60 * 1000;
 
 export function AppShell({
   title,
@@ -27,7 +49,52 @@ export function AppShell({
 }) {
   const { search, setSearch } = useVault();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [warning, setWarning] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const lastActivity = useRef(Date.now());
+
+  const signOut = useCallback(async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/", replace: true });
+  }, [navigate, queryClient]);
+
+  const stayActive = useCallback(() => {
+    lastActivity.current = Date.now();
+    setWarning(false);
+  }, []);
+
+  useEffect(() => {
+    const events = ["mousedown", "keydown", "touchstart", "scroll", "focus"] as const;
+    const onActivity = () => {
+      lastActivity.current = Date.now();
+    };
+    events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }));
+
+    const interval = window.setInterval(() => {
+      const idle = Date.now() - lastActivity.current;
+      if (idle >= IDLE_LIMIT_MS) {
+        void signOut();
+        return;
+      }
+      const remaining = IDLE_LIMIT_MS - idle;
+      if (remaining <= WARNING_MS) {
+        setWarning(true);
+        setSecondsLeft(Math.max(1, Math.ceil(remaining / 1000)));
+      } else {
+        setWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, onActivity));
+      window.clearInterval(interval);
+    };
+  }, [signOut]);
+
 
   const sidebar = (
     <div className="flex h-full w-72 flex-col border-r border-sidebar-border bg-sidebar">
@@ -68,15 +135,15 @@ export function AppShell({
 
       <div className="p-4">
         <div className="mb-4 rounded-xl bg-primary-soft p-3">
-          <p className="text-xs font-semibold text-primary">Archival Prototype</p>
+          <p className="text-xs font-semibold text-primary">Secure session</p>
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            Demo data only — nothing is stored permanently.
+            You will be signed out automatically after 15 minutes of inactivity.
           </p>
         </div>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => navigate({ to: "/" })}
+          onClick={() => void signOut()}
         >
           <LogOut className="h-[18px] w-[18px]" />
           Log out
@@ -137,6 +204,32 @@ export function AppShell({
 
         <main className={cn("flex-1 px-5 py-6 sm:px-8 sm:py-8")}>{children}</main>
       </div>
+
+      <Dialog open={warning} onOpenChange={(open) => !open && stayActive()}>
+        <DialogContent className="rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ShieldAlert className="h-5 w-5 text-gold-foreground" />
+              Session about to expire
+            </DialogTitle>
+            <DialogDescription>
+              For record security you will be signed out in {secondsLeft}{" "}
+              {secondsLeft === 1 ? "second" : "seconds"} due to inactivity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => void signOut()}>
+              Log out now
+            </Button>
+            <Button
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+              onClick={stayActive}
+            >
+              Stay signed in
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

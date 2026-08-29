@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { StudentRecord } from "@/data/records";
+import { createSignedUrl } from "@/lib/records-api";
+import { useDeleteRecord, useRecords, useUpdateRecord } from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +87,11 @@ function matches(record: StudentRecord, query: string) {
 }
 
 function BrowsePage() {
-  const { records, search, removeRecord, renameRecord } = useVault();
+  const { search } = useVault();
+  const { data, isLoading, isError } = useRecords();
+  const records: StudentRecord[] = data ?? [];
+  const updateMutation = useUpdateRecord();
+  const deleteMutation = useDeleteRecord();
 
   const [path, setPath] = useState<string[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -149,23 +155,60 @@ function BrowsePage() {
       prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
     );
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
-    removeRecord(pendingDelete.id);
-    toast.success("Record removed", { description: pendingDelete.fileName });
+    const target = pendingDelete;
     setPendingDelete(null);
+    await deleteMutation.mutateAsync(target).then(
+      () => toast.success("Record deleted", { description: target.fileName }),
+      () => undefined,
+    );
   };
 
-  const confirmRename = () => {
+  const confirmRename = async () => {
     if (!renaming || !renameValue.trim()) return;
-    renameRecord(renaming.id, renameValue.trim());
-    toast.success("Record renamed", { description: renameValue.trim() });
+    const target = renaming;
+    const fileName = renameValue.trim();
     setRenaming(null);
+    await updateMutation.mutateAsync({ record: target, patch: { fileName } }).then(
+      () => toast.success("Record renamed", { description: fileName }),
+      () => undefined,
+    );
   };
+
+  const openFile = async (record: StudentRecord) => {
+    try {
+      const url = await createSignedUrl(record);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error("Could not open file", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  if (isLoading || isError) {
+    return (
+      <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
+        {isError ? (
+          <p className="vault-card p-10 text-center text-sm text-destructive">
+            Could not load records. Please refresh and try again.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="vault-card h-28 animate-pulse bg-muted/40 p-5" />
+            ))}
+          </div>
+        )}
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
       <Tabs defaultValue="folders" className="space-y-6">
+
         <TabsList className="rounded-xl bg-muted p-1">
           <TabsTrigger value="folders" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
             Folder View
@@ -498,14 +541,22 @@ function BrowsePage() {
           <DialogHeader>
             <DialogTitle className="text-base">{preview?.fileName}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-12 text-center">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
               <FileText className="h-8 w-8 text-gold-foreground" />
             </span>
-            <p className="mt-4 text-sm font-medium text-foreground">Mock document preview</p>
+            <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Rendering is disabled in this prototype.
+              Opens through a signed link that expires after 60 seconds.
             </p>
+            {preview && (
+              <Button
+                className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+                onClick={() => void openFile(preview)}
+              >
+                Open file
+              </Button>
+            )}
           </div>
           {preview && (
             <dl className="grid grid-cols-2 gap-3 text-sm">
@@ -561,7 +612,8 @@ function BrowsePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this record?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.fileName} will be removed from this demo session.
+              {pendingDelete?.fileName} and its stored file will be permanently deleted. This action
+              is recorded in the activity log.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
