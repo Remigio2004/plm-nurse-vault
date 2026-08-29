@@ -612,7 +612,8 @@ function BrowsePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this record?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.fileName} will be removed from this demo session.
+              {pendingDelete?.fileName} and its stored file will be permanently deleted. This action
+              is recorded in the activity log.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
