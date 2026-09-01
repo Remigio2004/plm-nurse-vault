@@ -121,7 +121,14 @@ export async function createRecord(input: {
 
 export async function updateRecord(
   record: StudentRecord,
-  patch: { fileName?: string; studentName?: string; studentNumber?: string },
+  patch: {
+    fileName?: string;
+    studentName?: string;
+    studentNumber?: string;
+    batch?: string;
+    category?: StudentCategory;
+    status?: RecordStatus;
+  },
 ): Promise<void> {
   const payload: Record<string, unknown> = {};
   const changed: Record<string, unknown> = {};
@@ -136,6 +143,18 @@ export async function updateRecord(
   if (patch.studentNumber && patch.studentNumber !== record.studentNumber) {
     payload["student_number"] = patch.studentNumber;
     changed["student_number"] = { from: record.studentNumber, to: patch.studentNumber };
+  }
+  if (patch.batch && patch.batch !== record.batch) {
+    payload["batch"] = patch.batch;
+    changed["batch"] = { from: record.batch, to: patch.batch };
+  }
+  if (patch.category && patch.category !== record.category) {
+    payload["student_category"] = patch.category;
+    changed["student_category"] = { from: record.category, to: patch.category };
+  }
+  if (patch.status && patch.status !== record.status) {
+    payload["status"] = patch.status;
+    changed["status"] = { from: record.status, to: patch.status };
   }
   if (Object.keys(payload).length === 0) return;
 

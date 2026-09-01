@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-import seal from "@/assets/plm-con-seal.png";
+import seal from "@/assets/Nursing logo.png";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,11 +41,13 @@ export function AppShell({
   description,
   children,
   searchPlaceholder = "Search records, students, batches…",
+  showSearch = true,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   searchPlaceholder?: string;
+  showSearch?: boolean;
 }) {
   const { search, setSearch } = useVault();
   const navigate = useNavigate();
@@ -107,8 +109,8 @@ export function AppShell({
           className="h-12 w-12 shrink-0 object-contain"
         />
         <div className="leading-tight">
-          <p className="text-lg font-semibold tracking-tight text-primary">NurseVault</p>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-lg font-semibold tracking-tight text-sidebar-foreground">NurseVault</p>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
             PLM College of Nursing
           </p>
         </div>
@@ -117,7 +119,7 @@ export function AppShell({
       <div className="mx-5 h-px bg-sidebar-border" />
 
       <nav className="flex flex-1 flex-col gap-1 p-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60">
           Records Office
         </p>
         {navItems.map(({ to, label, icon: Icon }) => (
@@ -125,24 +127,24 @@ export function AppShell({
             key={to}
             to={to}
             onClick={() => setMobileOpen(false)}
-            className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-all duration-200 hover:bg-sidebar-accent hover:text-primary data-[status=active]:bg-primary data-[status=active]:text-primary-foreground data-[status=active]:shadow-soft"
+            className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:shadow-soft"
           >
-            <Icon className="h-[18px] w-[18px] shrink-0 text-primary transition-colors group-data-[status=active]:text-gold" />
+            <Icon className="h-[18px] w-[18px] shrink-0 text-sidebar-foreground/70 transition-colors group-data-[status=active]:text-sidebar-primary-foreground" />
             {label}
           </Link>
         ))}
       </nav>
 
       <div className="p-4">
-        <div className="mb-4 rounded-xl bg-primary-soft p-3">
-          <p className="text-xs font-semibold text-primary">Secure session</p>
-          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+        <div className="mb-4 rounded-xl bg-sidebar-accent p-3">
+          <p className="text-xs font-semibold text-sidebar-foreground">Secure session</p>
+          <p className="mt-1 text-[11px] leading-snug text-sidebar-foreground/70">
             You will be signed out automatically after 15 minutes of inactivity.
           </p>
         </div>
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-destructive/10 hover:text-destructive"
+          className="w-full justify-start gap-3 rounded-xl text-sm font-medium text-sidebar-foreground/80 hover:bg-destructive/10 hover:text-destructive"
           onClick={() => void signOut()}
         >
           <LogOut className="h-[18px] w-[18px]" />
@@ -190,15 +192,17 @@ export function AppShell({
               </div>
             </div>
 
-            <div className="relative w-full md:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="h-10 rounded-xl border-input bg-surface pl-9 text-sm"
-              />
-            </div>
+            {showSearch && (
+              <div className="relative w-full md:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="h-10 rounded-xl border-input bg-surface pl-9 text-sm"
+                />
+              </div>
+            )}
           </div>
         </header>
 

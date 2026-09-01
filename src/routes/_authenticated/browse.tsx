@@ -44,11 +44,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { StudentRecord } from "@/data/records";
+import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/records";
+import { Label } from "@/components/ui/label";
 import { createSignedUrl } from "@/lib/records-api";
 import { useDeleteRecord, useRecords, useUpdateRecord } from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
-import { cn } from "@/lib/utils";
+import { cn, formatStudentNumber } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/browse")({
   head: () => ({
@@ -97,8 +98,23 @@ function BrowsePage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [preview, setPreview] = useState<StudentRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null);
-  const [renaming, setRenaming] = useState<StudentRecord | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [editing, setEditing] = useState<StudentRecord | null>(null);
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentNumber, setEditStudentNumber] = useState("");
+  const [editBatchYear, setEditBatchYear] = useState("");
+  const [editCategory, setEditCategory] = useState<StudentCategory | "">("");
+  const [editStatus, setEditStatus] = useState<RecordStatus | "">("");
+  const [editFileName, setEditFileName] = useState("");
+
+  const openEdit = (record: StudentRecord) => {
+    setEditing(record);
+    setEditStudentName(record.studentName);
+    setEditStudentNumber(record.studentNumber);
+    setEditBatchYear(record.batch.replace(/\D/g, "").slice(0, 4));
+    setEditCategory(record.category);
+    setEditStatus(record.status);
+    setEditFileName(record.fileName);
+  };
 
   const [batchFilter, setBatchFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -165,15 +181,27 @@ function BrowsePage() {
     );
   };
 
-  const confirmRename = async () => {
-    if (!renaming || !renameValue.trim()) return;
-    const target = renaming;
-    const fileName = renameValue.trim();
-    setRenaming(null);
-    await updateMutation.mutateAsync({ record: target, patch: { fileName } }).then(
-      () => toast.success("Record renamed", { description: fileName }),
-      () => undefined,
-    );
+  const confirmEdit = async () => {
+    if (!editing) return;
+    const target = editing;
+    const nextBatch = editBatchYear ? `Batch ${editBatchYear}` : target.batch;
+    setEditing(null);
+    await updateMutation
+      .mutateAsync({
+        record: target,
+        patch: {
+          studentName: editStudentName.trim(),
+          studentNumber: editStudentNumber.trim(),
+          batch: nextBatch,
+          category: editCategory as StudentCategory,
+          status: editStatus as RecordStatus,
+          fileName: editFileName.trim(),
+        },
+      })
+      .then(
+        () => toast.success("Record updated", { description: editStudentName.trim() }),
+        () => undefined,
+      );
   };
 
   const openFile = async (record: StudentRecord) => {
@@ -353,12 +381,9 @@ function BrowsePage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Rename record"
+                        aria-label="Edit record"
                         className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                        onClick={() => {
-                          setRenaming(record);
-                          setRenameValue(record.fileName);
-                        }}
+                        onClick={() => openEdit(record)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -406,8 +431,8 @@ function BrowsePage() {
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="HD Student">HD Student</SelectItem>
-                <SelectItem value="RLE Student">RLE Student</SelectItem>
+                <SelectItem value="Honorable Student">Honorable Student</SelectItem>
+                <SelectItem value="Graduated Student">Graduated Student</SelectItem>
               </SelectContent>
             </Select>
 
@@ -497,12 +522,9 @@ function BrowsePage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="Rename record"
+                            aria-label="Edit record"
                             className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                            onClick={() => {
-                              setRenaming(record);
-                              setRenameValue(record.fileName);
-                            }}
+                            onClick={() => openEdit(record)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -583,23 +605,92 @@ function BrowsePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!renaming} onOpenChange={(open) => !open && setRenaming(null)}>
-        <DialogContent className="rounded-xl sm:max-w-md">
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="rounded-xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base">Rename record</DialogTitle>
+            <DialogTitle className="text-base">Edit record</DialogTitle>
           </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            className="h-11 rounded-xl"
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="editStudentName">Student Name</Label>
+              <Input
+                id="editStudentName"
+                value={editStudentName}
+                onChange={(e) => setEditStudentName(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editStudentNumber">Student Number</Label>
+              <Input
+                id="editStudentNumber"
+                inputMode="numeric"
+                value={editStudentNumber}
+                onChange={(e) => setEditStudentNumber(formatStudentNumber(e.target.value))}
+                maxLength={10}
+                className="h-11 rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editBatchYear">Batch</Label>
+              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring">
+                <input
+                  id="editBatchYear"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={editBatchYear}
+                  onChange={(e) => setEditBatchYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  maxLength={4}
+                  className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Student Category</Label>
+              <Select value={editCategory} onValueChange={(v) => setEditCategory(v as StudentCategory)}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Honorable Student">Honorable Student</SelectItem>
+                  <SelectItem value="Graduated Student">Graduated Student</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editStatus} onValueChange={(v) => setEditStatus(v as RecordStatus)}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Regular">Regular</SelectItem>
+                  <SelectItem value="Irregular">Irregular</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="editFileName">File Name</Label>
+              <Input
+                id="editFileName"
+                value={editFileName}
+                onChange={(e) => setEditFileName(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+            </div>
+          </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => setRenaming(null)}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setEditing(null)}>
               Cancel
             </Button>
             <Button
               className="rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-              onClick={confirmRename}
+              onClick={confirmEdit}
             >
               Save changes
             </Button>
