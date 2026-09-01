@@ -3,7 +3,7 @@ import { Lock, Mail, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import seal from "@/assets/plm-con-seal.png";
+import seal from "@/assets/Nursing logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

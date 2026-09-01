@@ -1,4 +1,4 @@
-export type StudentCategory = "HD Student" | "RLE Student";
+export type StudentCategory = "Honorable Student" | "Graduated Student";
 export type RecordStatus = "Regular" | "Irregular";
 export type FileKind = "pdf" | "docx" | "xlsx";
 
