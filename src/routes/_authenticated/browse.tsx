@@ -12,7 +12,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -330,6 +330,15 @@ function BrowsePage() {
     setPreviewUrl(null);
     setPreviewLoading(false);
   };
+
+  useEffect(() => {
+    if (!previewUrl) return;
+    const timer = setTimeout(() => {
+      closePreview();
+    }, 5 * 60 * 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewUrl]);
 
   if (isLoading || isError) {
     return (
