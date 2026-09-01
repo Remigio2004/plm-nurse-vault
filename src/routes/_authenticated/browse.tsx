@@ -99,6 +99,8 @@ function BrowsePage() {
   const [path, setPath] = useState<string[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [preview, setPreview] = useState<StudentRecord | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null);
   const [deletePasskey, setDeletePasskey] = useState<string | null>(null);
   const [editing, setEditing] = useState<StudentRecord | null>(null);
@@ -308,8 +310,25 @@ function BrowsePage() {
   };
 
   const openFile = async (record: StudentRecord, passkey: string | null) => {
-    const url = await createSignedUrl(record, passkey);
-    window.open(url, "_blank", "noopener,noreferrer");
+    setPreviewLoading(true);
+    try {
+      const url = await createSignedUrl(record, passkey);
+      setPreviewUrl(url);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const openPreview = (record: StudentRecord) => {
+    setPreview(record);
+    setPreviewUrl(null);
+    setPreviewLoading(false);
+  };
+
+  const closePreview = () => {
+    setPreview(null);
+    setPreviewUrl(null);
+    setPreviewLoading(false);
   };
 
   if (isLoading || isError) {
@@ -459,7 +478,7 @@ function BrowsePage() {
                     )}
                   >
                     <button
-                      onClick={() => setPreview(record)}
+                      onClick={() => openPreview(record)}
                       className={cn(
                         "text-left",
                         view === "grid" ? "block w-full" : "flex min-w-0 flex-1 items-center gap-4",
@@ -532,7 +551,7 @@ function BrowsePage() {
                     )}
                   >
                     <button
-                      onClick={() => setPreview(record)}
+                      onClick={() => openPreview(record)}
                       className={cn(
                         "text-left",
                         view === "grid" ? "block w-full" : "flex min-w-0 flex-1 items-center gap-4",
@@ -679,7 +698,7 @@ function BrowsePage() {
                     <TableRow key={record.id} className="transition-colors hover:bg-surface">
                       <TableCell className="font-medium text-foreground">
                         <button
-                          onClick={() => setPreview(record)}
+                          onClick={() => openPreview(record)}
                           className="text-left hover:text-primary"
                         >
                           {record.studentName}
@@ -749,28 +768,35 @@ function BrowsePage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!preview} onOpenChange={(open) => !open && setPreview(null)}>
-        <DialogContent className="rounded-xl sm:max-w-lg">
+      <Dialog open={!!preview} onOpenChange={(open) => !open && closePreview()}>
+        <DialogContent className="rounded-xl sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-base">{preview?.studentName}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
-              <FileText className="h-8 w-8 text-gold-foreground" />
-            </span>
-            <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Opens through a signed link that expires after 60 seconds.
-            </p>
-            {preview && (
-              <Button
-                className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-                onClick={() => requestOpenFile(preview)}
-              >
-                Open file
-              </Button>
-            )}
-          </div>
+          {previewUrl ? (
+            <div className="overflow-hidden rounded-xl border border-input">
+              <iframe src={previewUrl} title="Document preview" className="h-[70vh] w-full" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
+                <FileText className="h-8 w-8 text-gold-foreground" />
+              </span>
+              <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Opens here using a temporary signed link.
+              </p>
+              {preview && (
+                <Button
+                  className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+                  onClick={() => requestOpenFile(preview)}
+                  disabled={previewLoading}
+                >
+                  {previewLoading ? "Loading…" : "Open file"}
+                </Button>
+              )}
+            </div>
+          )}
           {preview && (
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <div>

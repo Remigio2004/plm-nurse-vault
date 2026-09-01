@@ -68,6 +68,11 @@ function UploadPage() {
 
   const pickFile = (selected: File | undefined | null) => {
     if (!selected) return;
+    const isPdf = selected.type === "application/pdf" || selected.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      toast.error("PDF files only", { description: "Please attach a scanned record in PDF format." });
+      return;
+    }
     if (selected.size > MAX_SIZE) {
       toast.error("File too large", { description: "Scanned records must be 25 MB or smaller." });
       return;
@@ -213,7 +218,7 @@ function UploadPage() {
         <div className="space-y-6">
           <div className="vault-card p-6">
             <h2 className="text-base font-semibold text-foreground">Scanned Record</h2>
-            <p className="mt-1 text-sm text-muted-foreground">PDF, Word or Excel · max 25 MB</p>
+            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 25 MB</p>
 
             <div
               onDragOver={(e) => {
@@ -247,7 +252,7 @@ function UploadPage() {
               <input
                 ref={inputRef}
                 type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                accept=".pdf"
                 className="hidden"
                 onChange={(e) => pickFile(e.target.files?.[0])}
               />
