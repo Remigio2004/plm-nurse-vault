@@ -1,4 +1,4 @@
-export type StudentCategory = "Honorable Student" | "Graduated Student";
+export type StudentCategory = "CN Graduate" | "CN Honorable Dismissal" | "CN Transferee" | "CN Others";
 export type RecordStatus = "Regular" | "Irregular";
 export type FileKind = "pdf" | "docx" | "xlsx";
 
@@ -9,12 +9,15 @@ export interface StudentRecord {
   batch: string;
   category: StudentCategory;
   status: RecordStatus;
-  fileName: string;
-  fileType: FileKind;
+  // File details are only known once a correct passkey has been verified
+  // server-side; the base list fetch never receives them.
+  fileName: string | null;
+  fileType: FileKind | null;
   fileSize: number | null;
-  storagePath: string;
+  storagePath: string | null;
   uploadDate: string;
   uploadedAt: string;
+  hasPasskey: boolean;
 }
 
 export type AuditAction = "upload" | "edit" | "delete" | "view";
