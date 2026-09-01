@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowUpDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
   FileText,
   Folder,
@@ -46,8 +48,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/records";
 import { Label } from "@/components/ui/label";
-import { createSignedUrl } from "@/lib/records-api";
-import { useDeleteRecord, useRecords, useUpdateRecord } from "@/lib/use-records";
+import { createSignedUrl, unlockFileInfo } from "@/lib/records-api";
+import { useDeleteRecord, useRecords, useRenameFile, useUpdateRecord } from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
 import { cn, formatStudentNumber } from "@/lib/utils";
 
@@ -83,7 +85,6 @@ function matches(record: StudentRecord, query: string) {
     record.batch,
     record.category,
     record.status,
-    record.fileName,
   ].some((v) => v.toLowerCase().includes(q));
 }
 
@@ -93,12 +94,17 @@ function BrowsePage() {
   const records: StudentRecord[] = data ?? [];
   const updateMutation = useUpdateRecord();
   const deleteMutation = useDeleteRecord();
+  const renameMutation = useRenameFile();
 
   const [path, setPath] = useState<string[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [preview, setPreview] = useState<StudentRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null);
+  const [deletePasskey, setDeletePasskey] = useState<string | null>(null);
   const [editing, setEditing] = useState<StudentRecord | null>(null);
+  const [editUnlock, setEditUnlock] = useState<{ passkey: string | null; fileName: string } | null>(
+    null,
+  );
   const [editStudentName, setEditStudentName] = useState("");
   const [editStudentNumber, setEditStudentNumber] = useState("");
   const [editBatchYear, setEditBatchYear] = useState("");
@@ -106,14 +112,98 @@ function BrowsePage() {
   const [editStatus, setEditStatus] = useState<RecordStatus | "">("");
   const [editFileName, setEditFileName] = useState("");
 
-  const openEdit = (record: StudentRecord) => {
+  const [passkeyPrompt, setPasskeyPrompt] = useState<
+    { purpose: "open" | "edit" | "delete"; record: StudentRecord } | null
+  >(null);
+  const [passkeyInput, setPasskeyInput] = useState("");
+  const [passkeyShow, setPasskeyShow] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  const closeEdit = () => {
+    setEditing(null);
+    setEditUnlock(null);
+  };
+
+  const closeDeletePrompt = () => {
+    setPendingDelete(null);
+    setDeletePasskey(null);
+  };
+
+  const closePasskeyPrompt = () => {
+    setPasskeyPrompt(null);
+    setPasskeyInput("");
+    setPasskeyError(null);
+    setPasskeyShow(false);
+  };
+
+  const startEdit = async (record: StudentRecord, passkey: string | null) => {
+    const info = await unlockFileInfo(record, passkey);
+    setEditUnlock({ passkey, fileName: info.fileName });
     setEditing(record);
     setEditStudentName(record.studentName);
     setEditStudentNumber(record.studentNumber);
     setEditBatchYear(record.batch.replace(/\D/g, "").slice(0, 4));
     setEditCategory(record.category);
     setEditStatus(record.status);
-    setEditFileName(record.fileName);
+    setEditFileName(info.fileName);
+  };
+
+  const requestEdit = (record: StudentRecord) => {
+    if (record.hasPasskey) {
+      setPasskeyPrompt({ purpose: "edit", record });
+      return;
+    }
+    void startEdit(record, null).catch((error) => {
+      toast.error("Could not open record", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    });
+  };
+
+  const requestDelete = (record: StudentRecord) => {
+    if (record.hasPasskey) {
+      setPasskeyPrompt({ purpose: "delete", record });
+      return;
+    }
+    setDeletePasskey(null);
+    setPendingDelete(record);
+  };
+
+  const requestOpenFile = (record: StudentRecord) => {
+    if (record.hasPasskey) {
+      setPasskeyPrompt({ purpose: "open", record });
+      return;
+    }
+    void openFile(record, null).catch((error) => {
+      toast.error("Could not open file", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    });
+  };
+
+  const submitPasskey = async () => {
+    if (!passkeyPrompt) return;
+    const { purpose, record } = passkeyPrompt;
+    setPasskeyBusy(true);
+    setPasskeyError(null);
+    try {
+      if (purpose === "open") {
+        await openFile(record, passkeyInput);
+        closePasskeyPrompt();
+      } else if (purpose === "edit") {
+        await startEdit(record, passkeyInput);
+        closePasskeyPrompt();
+      } else {
+        setDeletePasskey(passkeyInput);
+        setPendingDelete(record);
+        closePasskeyPrompt();
+      }
+    } catch (error) {
+      setPasskeyError(error instanceof Error ? error.message : "Incorrect passkey.");
+    } finally {
+      setPasskeyBusy(false);
+    }
   };
 
   const [batchFilter, setBatchFilter] = useState("all");
@@ -151,6 +241,8 @@ function BrowsePage() {
   }, [scoped, path]);
 
   const folderRecords = path.length >= 3 ? scoped.filter((r) => matches(r, search)) : [];
+  const isSearching = search.trim().length > 0;
+  const searchResults = isSearching ? records.filter((r) => matches(r, search)) : [];
 
   const tableRows = useMemo(() => {
     const rows = records.filter(
@@ -174,9 +266,10 @@ function BrowsePage() {
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const target = pendingDelete;
-    setPendingDelete(null);
-    await deleteMutation.mutateAsync(target).then(
-      () => toast.success("Record deleted", { description: target.fileName }),
+    const passkey = deletePasskey;
+    closeDeletePrompt();
+    await deleteMutation.mutateAsync({ record: target, passkey }).then(
+      () => toast.success("Record deleted", { description: target.studentName }),
       () => undefined,
     );
   };
@@ -185,7 +278,11 @@ function BrowsePage() {
     if (!editing) return;
     const target = editing;
     const nextBatch = editBatchYear ? `Batch ${editBatchYear}` : target.batch;
-    setEditing(null);
+    const passkey = editUnlock?.passkey ?? null;
+    const originalFileName = editUnlock?.fileName ?? "";
+    const trimmedFileName = editFileName.trim();
+    closeEdit();
+
     await updateMutation
       .mutateAsync({
         record: target,
@@ -195,24 +292,24 @@ function BrowsePage() {
           batch: nextBatch,
           category: editCategory as StudentCategory,
           status: editStatus as RecordStatus,
-          fileName: editFileName.trim(),
         },
       })
       .then(
         () => toast.success("Record updated", { description: editStudentName.trim() }),
         () => undefined,
       );
+
+    if (trimmedFileName && trimmedFileName !== originalFileName) {
+      await renameMutation.mutateAsync({ record: target, passkey, newFileName: trimmedFileName }).then(
+        () => toast.success("File renamed", { description: trimmedFileName }),
+        () => undefined,
+      );
+    }
   };
 
-  const openFile = async (record: StudentRecord) => {
-    try {
-      const url = await createSignedUrl(record);
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error("Could not open file", {
-        description: error instanceof Error ? error.message : "Please try again.",
-      });
-    }
+  const openFile = async (record: StudentRecord, passkey: string | null) => {
+    const url = await createSignedUrl(record, passkey);
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   if (isLoading || isError) {
@@ -249,29 +346,37 @@ function BrowsePage() {
         <TabsContent value="folders" className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm">
-              <button
-                onClick={() => setPath([])}
-                className={cn(
-                  "rounded-lg px-2 py-1 font-medium transition-colors hover:bg-primary-soft",
-                  path.length === 0 ? "text-primary" : "text-muted-foreground",
-                )}
-              >
-                All Batches
-              </button>
-              {path.map((segment, i) => (
-                <span key={segment} className="flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              {isSearching ? (
+                <span className="rounded-lg px-2 py-1 font-medium text-primary">
+                  Search results for &quot;{search.trim()}&quot;
+                </span>
+              ) : (
+                <>
                   <button
-                    onClick={() => setPath(path.slice(0, i + 1))}
+                    onClick={() => setPath([])}
                     className={cn(
                       "rounded-lg px-2 py-1 font-medium transition-colors hover:bg-primary-soft",
-                      i === path.length - 1 ? "text-primary" : "text-muted-foreground",
+                      path.length === 0 ? "text-primary" : "text-muted-foreground",
                     )}
                   >
-                    {segment}
+                    All Batches
                   </button>
-                </span>
-              ))}
+                  {path.map((segment, i) => (
+                    <span key={segment} className="flex items-center gap-1">
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <button
+                        onClick={() => setPath(path.slice(0, i + 1))}
+                        className={cn(
+                          "rounded-lg px-2 py-1 font-medium transition-colors hover:bg-primary-soft",
+                          i === path.length - 1 ? "text-primary" : "text-muted-foreground",
+                        )}
+                      >
+                        {segment}
+                      </button>
+                    </span>
+                  ))}
+                </>
+              )}
             </nav>
 
             <div className="flex items-center gap-1 rounded-xl border border-border bg-background p-1">
@@ -296,7 +401,7 @@ function BrowsePage() {
             </div>
           </div>
 
-          {folders.length > 0 && (
+          {!isSearching && folders.length > 0 && (
             <div
               className={cn(
                 view === "grid"
@@ -335,7 +440,7 @@ function BrowsePage() {
             </div>
           )}
 
-          {path.length >= 3 && (
+          {!isSearching && path.length >= 3 && (
             <div
               className={cn(
                 view === "grid"
@@ -373,7 +478,7 @@ function BrowsePage() {
                           {record.studentName}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {record.studentNumber} · {record.fileName}
+                          {record.studentNumber}
                         </span>
                       </span>
                     </button>
@@ -383,7 +488,7 @@ function BrowsePage() {
                         size="icon"
                         aria-label="Edit record"
                         className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                        onClick={() => openEdit(record)}
+                        onClick={() => requestEdit(record)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -392,7 +497,7 @@ function BrowsePage() {
                         size="icon"
                         aria-label="Delete record"
                         className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => setPendingDelete(record)}
+                        onClick={() => requestDelete(record)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -403,6 +508,90 @@ function BrowsePage() {
               {folderRecords.length === 0 && (
                 <p className="vault-card p-10 text-center text-sm text-muted-foreground sm:col-span-full">
                   This folder has no records matching your search.
+                </p>
+              )}
+            </div>
+          )}
+
+          {isSearching && (
+            <div
+              className={cn(
+                view === "grid"
+                  ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  : "flex flex-col gap-2",
+              )}
+            >
+              {searchResults.map((record) => {
+                const Icon = iconFor(record.fileType);
+                return (
+                  <div
+                    key={record.id}
+                    className={cn(
+                      "vault-card group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
+                      view === "grid" ? "p-5" : "flex items-center gap-4 p-4",
+                    )}
+                  >
+                    <button
+                      onClick={() => setPreview(record)}
+                      className={cn(
+                        "text-left",
+                        view === "grid" ? "block w-full" : "flex min-w-0 flex-1 items-center gap-4",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-11 w-11 items-center justify-center rounded-xl bg-gold-soft",
+                          view === "grid" && "mb-4",
+                        )}
+                      >
+                        <Icon className="h-5 w-5 text-gold-foreground" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-foreground">
+                          {record.studentName}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          {record.studentNumber}
+                        </span>
+                        <span className="mt-1.5 flex flex-wrap gap-1">
+                          <Badge className="rounded-lg bg-primary-soft text-primary hover:bg-primary-soft">
+                            {record.batch}
+                          </Badge>
+                          <Badge variant="outline" className="rounded-lg border-border text-muted-foreground">
+                            {record.category}
+                          </Badge>
+                          <Badge variant="outline" className="rounded-lg border-border text-muted-foreground">
+                            {record.status}
+                          </Badge>
+                        </span>
+                      </span>
+                    </button>
+                    <div className={cn("flex gap-1", view === "grid" && "mt-4")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Edit record"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                        onClick={() => requestEdit(record)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete record"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => requestDelete(record)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {searchResults.length === 0 && (
+                <p className="vault-card p-10 text-center text-sm text-muted-foreground sm:col-span-full">
+                  No records match your search.
                 </p>
               )}
             </div>
@@ -431,8 +620,10 @@ function BrowsePage() {
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="Honorable Student">Honorable Student</SelectItem>
-                <SelectItem value="Graduated Student">Graduated Student</SelectItem>
+                <SelectItem value="CN Graduate">CN Graduate</SelectItem>
+                <SelectItem value="CN Honorable Dismissal">CN Honorable Dismissal</SelectItem>
+                <SelectItem value="CN Transferee">CN Transferee</SelectItem>
+                <SelectItem value="CN Others">CN Others</SelectItem>
               </SelectContent>
             </Select>
 
@@ -524,7 +715,7 @@ function BrowsePage() {
                             size="icon"
                             aria-label="Edit record"
                             className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                            onClick={() => openEdit(record)}
+                            onClick={() => requestEdit(record)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -533,7 +724,7 @@ function BrowsePage() {
                             size="icon"
                             aria-label="Delete record"
                             className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => setPendingDelete(record)}
+                            onClick={() => requestDelete(record)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -561,7 +752,7 @@ function BrowsePage() {
       <Dialog open={!!preview} onOpenChange={(open) => !open && setPreview(null)}>
         <DialogContent className="rounded-xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base">{preview?.fileName}</DialogTitle>
+            <DialogTitle className="text-base">{preview?.studentName}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
@@ -574,7 +765,7 @@ function BrowsePage() {
             {preview && (
               <Button
                 className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-                onClick={() => void openFile(preview)}
+                onClick={() => requestOpenFile(preview)}
               >
                 Open file
               </Button>
@@ -605,7 +796,7 @@ function BrowsePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={(open) => !open && closeEdit()}>
         <DialogContent className="rounded-xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base">Edit record</DialogTitle>
@@ -655,8 +846,10 @@ function BrowsePage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="Honorable Student">Honorable Student</SelectItem>
-                  <SelectItem value="Graduated Student">Graduated Student</SelectItem>
+                  <SelectItem value="CN Graduate">CN Graduate</SelectItem>
+                  <SelectItem value="CN Honorable Dismissal">CN Honorable Dismissal</SelectItem>
+                  <SelectItem value="CN Transferee">CN Transferee</SelectItem>
+                  <SelectItem value="CN Others">CN Others</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -685,7 +878,7 @@ function BrowsePage() {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => setEditing(null)}>
+            <Button variant="outline" className="rounded-xl" onClick={closeEdit}>
               Cancel
             </Button>
             <Button
@@ -698,13 +891,59 @@ function BrowsePage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <Dialog open={!!passkeyPrompt} onOpenChange={(open) => !open && closePasskeyPrompt()}>
+        <DialogContent className="rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">Enter passkey</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {passkeyPrompt?.record.studentName} is locked. Enter its passkey to continue.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="passkeyInput">Passkey</Label>
+            <div className="relative">
+              <Input
+                id="passkeyInput"
+                type={passkeyShow ? "text" : "password"}
+                value={passkeyInput}
+                onChange={(e) => setPasskeyInput(e.target.value)}
+                className="h-11 rounded-xl pr-10"
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && void submitPasskey()}
+              />
+              <button
+                type="button"
+                onClick={() => setPasskeyShow((v) => !v)}
+                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                aria-label={passkeyShow ? "Hide passkey" : "Show passkey"}
+              >
+                {passkeyShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passkeyError && <p className="text-xs text-destructive">{passkeyError}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={closePasskeyPrompt}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+              onClick={() => void submitPasskey()}
+              disabled={passkeyBusy || !passkeyInput}
+            >
+              {passkeyBusy ? "Verifying..." : "Unlock"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && closeDeletePrompt()}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this record?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.fileName} and its stored file will be permanently deleted. This action
-              is recorded in the activity log.
+              {pendingDelete?.studentName}'s record and its stored file will be permanently deleted.
+              This action is recorded in the activity log.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

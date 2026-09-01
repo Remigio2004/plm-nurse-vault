@@ -10,6 +10,9 @@ import {
 
 export const RECORDS_BUCKET = "student-records";
 
+const SAFE_COLUMNS =
+  "id, student_name, student_number, batch, student_category, status, uploaded_at, updated_at, has_passkey";
+
 type RecordRow = {
   id: string;
   student_name: string;
@@ -17,12 +20,9 @@ type RecordRow = {
   batch: string;
   student_category: string;
   status: string;
-  storage_path: string;
-  file_name: string;
-  file_type: string;
-  file_size: number | null;
   uploaded_at: string;
   updated_at: string;
+  has_passkey: boolean;
 };
 
 const mapRecord = (row: RecordRow): StudentRecord => ({
@@ -32,10 +32,12 @@ const mapRecord = (row: RecordRow): StudentRecord => ({
   batch: row.batch,
   category: row.student_category as StudentCategory,
   status: row.status as RecordStatus,
-  fileName: row.file_name,
-  fileType: fileKindFromName(row.file_type ? `x.${row.file_type}` : row.file_name),
-  fileSize: row.file_size,
-  storagePath: row.storage_path,
+  // Not readable until a passkey is verified — see Phase 2.
+  fileName: null,
+  fileType: null,
+  fileSize: null,
+  storagePath: null,
+  hasPasskey: row.has_passkey,
   uploadedAt: row.uploaded_at,
   uploadDate: row.uploaded_at.slice(0, 10),
 });
@@ -43,7 +45,7 @@ const mapRecord = (row: RecordRow): StudentRecord => ({
 export async function fetchRecords(): Promise<StudentRecord[]> {
   const { data, error } = await supabase
     .from("records")
-    .select("*")
+    .select(SAFE_COLUMNS)
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
   return (data as RecordRow[]).map(mapRecord);
@@ -79,6 +81,7 @@ export async function createRecord(input: {
   category: StudentCategory;
   status: RecordStatus;
   file: File;
+  passkey: string;
 }): Promise<StudentRecord> {
   const ext = input.file.name.includes(".") ? input.file.name.split(".").pop()! : "bin";
   const storagePath = `${input.batch}/${crypto.randomUUID()}.${ext}`.replace(/\s+/g, "_");
@@ -100,8 +103,9 @@ export async function createRecord(input: {
       file_name: input.file.name,
       file_type: ext.toLowerCase(),
       file_size: input.file.size,
+      passkey_hash: input.passkey.trim(),
     })
-    .select("*")
+    .select(SAFE_COLUMNS)
     .single();
 
   if (error) {
@@ -122,7 +126,6 @@ export async function createRecord(input: {
 export async function updateRecord(
   record: StudentRecord,
   patch: {
-    fileName?: string;
     studentName?: string;
     studentNumber?: string;
     batch?: string;
@@ -132,10 +135,6 @@ export async function updateRecord(
 ): Promise<void> {
   const payload: Record<string, unknown> = {};
   const changed: Record<string, unknown> = {};
-  if (patch.fileName && patch.fileName !== record.fileName) {
-    payload["file_name"] = patch.fileName;
-    changed["file_name"] = { from: record.fileName, to: patch.fileName };
-  }
   if (patch.studentName && patch.studentName !== record.studentName) {
     payload["student_name"] = patch.studentName;
     changed["student_name"] = { from: record.studentName, to: patch.studentName };
@@ -172,7 +171,51 @@ export async function updateRecord(
   });
 }
 
-export async function deleteRecord(record: StudentRecord): Promise<void> {
+type FileAccessAction = "open" | "unlock" | "rename" | "delete";
+
+async function callFileAccess<T = unknown>(
+  action: FileAccessAction,
+  recordId: string,
+  passkey: string | null,
+  extra?: Record<string, unknown>,
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("file-access", {
+    body: { recordId, passkey, action, ...extra },
+  });
+  if (error) {
+    let msg = error.message ?? "Request failed";
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === "function") {
+      try {
+        const body = await response.json();
+        if (body?.error) msg = body.error;
+      } catch {
+        // fall back to error.message
+      }
+    }
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+export async function unlockFileInfo(
+  record: StudentRecord,
+  passkey: string | null,
+): Promise<{ fileName: string; fileType: string; fileSize: number }> {
+  return callFileAccess("unlock", record.id, passkey);
+}
+
+export async function renameFile(
+  record: StudentRecord,
+  passkey: string | null,
+  newFileName: string,
+): Promise<void> {
+  await callFileAccess("rename", record.id, passkey, { newFileName });
+}
+
+export async function deleteRecord(record: StudentRecord, passkey: string | null): Promise<void> {
+  await callFileAccess("delete", record.id, passkey);
+
   await logAudit({
     action: "delete",
     recordId: record.id,
@@ -180,25 +223,13 @@ export async function deleteRecord(record: StudentRecord): Promise<void> {
     details: { file_name: record.fileName },
   });
 
-  const removal = await supabase.storage.from(RECORDS_BUCKET).remove([record.storagePath]);
-  if (removal.error) throw removal.error;
-
   const { error } = await supabase.from("records").delete().eq("id", record.id);
   if (error) throw error;
 }
 
-export async function createSignedUrl(record: StudentRecord): Promise<string> {
-  const { data, error } = await supabase.storage
-    .from(RECORDS_BUCKET)
-    .createSignedUrl(record.storagePath, 60);
-  if (error) throw error;
-  await logAudit({
-    action: "view",
-    recordId: record.id,
-    recordSummary: summaryOf(record),
-    details: { file_name: record.fileName },
-  });
-  return data.signedUrl;
+export async function createSignedUrl(record: StudentRecord, passkey: string | null): Promise<string> {
+  const { url } = await callFileAccess<{ url: string }>("open", record.id, passkey);
+  return url;
 }
 
 type AuditRow = {
