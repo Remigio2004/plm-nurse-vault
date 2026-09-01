@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, FileUp, UploadCloud, X } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, FileUp, UploadCloud, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -50,12 +50,21 @@ function UploadPage() {
   const batch = batchYear ? `Batch ${batchYear}` : "";
   const [category, setCategory] = useState<StudentCategory | "">("");
   const [status, setStatus] = useState<RecordStatus | "">("");
+  const [passkey, setPasskey] = useState("");
+  const [showPasskey, setShowPasskey] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const submitting = createRecord.isPending;
   const ready =
-    studentName.trim() && studentNumber.trim() && batch.trim() && category && status && file;
+    studentName.trim() &&
+    studentNumber.trim() &&
+    batch.trim() &&
+    category &&
+    status &&
+    passkey.trim() &&
+    file;
+
 
   const pickFile = (selected: File | undefined | null) => {
     if (!selected) return;
@@ -80,6 +89,7 @@ function UploadPage() {
         category: category as StudentCategory,
         status: status as RecordStatus,
         file,
+        passkey: passkey.trim(),
       });
       toast.success("Record uploaded", {
         description: `${studentName.trim()} filed under ${batch.trim()} → ${category} → ${status}.`,
@@ -152,8 +162,10 @@ function UploadPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="Honorable Student">Honorable Student</SelectItem>
-                  <SelectItem value="Graduated Student">Graduated Student</SelectItem>
+                  <SelectItem value="CN Graduate">CN Graduate</SelectItem>
+                  <SelectItem value="CN Honorable Dismissal">CN Honorable Dismissal</SelectItem>
+                  <SelectItem value="CN Transferee">CN Transferee</SelectItem>
+                  <SelectItem value="CN Others">CN Others</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -169,6 +181,31 @@ function UploadPage() {
                   <SelectItem value="Irregular">Irregular</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="passkey">File Passkey</Label>
+              <div className="relative sm:max-w-xs">
+                <Input
+                  id="passkey"
+                  type={showPasskey ? "text" : "password"}
+                  value={passkey}
+                  onChange={(e) => setPasskey(e.target.value)}
+                  placeholder="Required to open this file later"
+                  className="h-11 rounded-xl pr-10"
+                />
+                <button
+                  type="button"
+                  aria-label={showPasskey ? "Hide passkey" : "Show passkey"}
+                  onClick={() => setShowPasskey((v) => !v)}
+                  className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This exact passkey will be required every time this file is opened.
+              </p>
             </div>
           </div>
         </div>

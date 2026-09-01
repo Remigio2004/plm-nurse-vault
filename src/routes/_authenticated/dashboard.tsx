@@ -51,8 +51,7 @@ function DashboardPage() {
         !query ||
         r.studentName.toLowerCase().includes(query) ||
         r.studentNumber.toLowerCase().includes(query) ||
-        r.batch.toLowerCase().includes(query) ||
-        r.fileName.toLowerCase().includes(query),
+        r.batch.toLowerCase().includes(query),
     )
     .slice(0, 5);
 
@@ -186,7 +185,7 @@ function DashboardPage() {
                           {record.studentName}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {record.studentNumber} · {record.fileName}
+                          {record.studentNumber}
                         </p>
                       </div>
                     </div>
