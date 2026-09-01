@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import type { RecordStatus, StudentCategory } from "@/data/records";
 import { useCreateRecord } from "@/lib/use-records";
-import { cn } from "@/lib/utils";
+import { cn, formatStudentNumber } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
@@ -46,7 +46,8 @@ function UploadPage() {
 
   const [studentName, setStudentName] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
-  const [batch, setBatch] = useState("");
+  const [batchYear, setBatchYear] = useState("");
+  const batch = batchYear ? `Batch ${batchYear}` : "";
   const [category, setCategory] = useState<StudentCategory | "">("");
   const [status, setStatus] = useState<RecordStatus | "">("");
   const [file, setFile] = useState<File | null>(null);
@@ -91,7 +92,11 @@ function UploadPage() {
   };
 
   return (
-    <AppShell title="Upload Record" description="Attach a scanned document and file it into the vault.">
+    <AppShell
+      title="Upload Record"
+      description="Attach a scanned document and file it into the vault."
+      showSearch={false}
+    >
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="vault-card p-6">
           <h2 className="text-base font-semibold text-foreground">Student details</h2>
@@ -115,22 +120,29 @@ function UploadPage() {
               <Label htmlFor="studentNumber">Student Number</Label>
               <Input
                 id="studentNumber"
+                inputMode="numeric"
                 value={studentNumber}
-                onChange={(e) => setStudentNumber(e.target.value)}
-                placeholder="2024-0001"
+                onChange={(e) => setStudentNumber(formatStudentNumber(e.target.value))}
+                placeholder="2022-23091"
+                maxLength={10}
                 className="h-11 rounded-xl"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="batch">Batch</Label>
-              <Input
-                id="batch"
-                value={batch}
-                onChange={(e) => setBatch(e.target.value)}
-                placeholder="Batch 2024"
-                className="h-11 rounded-xl"
-              />
+              <Label htmlFor="batchYear">Batch</Label>
+              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring">
+                <input
+                  id="batchYear"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={batchYear}
+                  onChange={(e) => setBatchYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="2024"
+                  maxLength={4}
+                  className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -140,8 +152,8 @@ function UploadPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="HD Student">HD Student</SelectItem>
-                  <SelectItem value="RLE Student">RLE Student</SelectItem>
+                  <SelectItem value="Honorable Student">Honorable Student</SelectItem>
+                  <SelectItem value="Graduated Student">Graduated Student</SelectItem>
                 </SelectContent>
               </Select>
             </div>
