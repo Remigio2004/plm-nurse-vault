@@ -2,8 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/records";
-import { auditLogsQuery, recordsQuery } from "./queries";
-import { createRecord, deleteRecord, renameFile, updateRecord } from "./records-api";
+import { auditLogsQuery, deletedRecordsQuery, recordsQuery } from "./queries";
+import {
+  createRecord,
+  deleteRecord,
+  purgeRecord,
+  renameFile,
+  restoreRecord,
+  updateRecord,
+} from "./records-api";
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Unexpected error. Please try again.";
@@ -14,6 +21,10 @@ export function useRecords() {
 
 export function useAuditLogs() {
   return useQuery(auditLogsQuery);
+}
+
+export function useDeletedRecords() {
+  return useQuery(deletedRecordsQuery);
 }
 
 export function useCreateRecord() {
@@ -56,6 +67,7 @@ export function useDeleteRecord() {
       deleteRecord(vars.record, vars.passkey),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["records"] });
+      void qc.invalidateQueries({ queryKey: ["deleted_records"] });
       void qc.invalidateQueries({ queryKey: ["audit_logs"] });
     },
     onError: (error) => toast.error("Delete failed", { description: message(error) }),
@@ -72,5 +84,30 @@ export function useRenameFile() {
       void qc.invalidateQueries({ queryKey: ["audit_logs"] });
     },
     onError: (error) => toast.error("Rename failed", { description: message(error) }),
+  });
+}
+
+export function useRestoreRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recordId: string) => restoreRecord(recordId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["records"] });
+      void qc.invalidateQueries({ queryKey: ["deleted_records"] });
+      void qc.invalidateQueries({ queryKey: ["audit_logs"] });
+    },
+    onError: (error) => toast.error("Restore failed", { description: message(error) }),
+  });
+}
+
+export function usePurgeRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recordId: string) => purgeRecord(recordId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["deleted_records"] });
+      void qc.invalidateQueries({ queryKey: ["audit_logs"] });
+    },
+    onError: (error) => toast.error("Permanent delete failed", { description: message(error) }),
   });
 }

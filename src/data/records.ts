@@ -20,7 +20,17 @@ export interface StudentRecord {
   hasPasskey: boolean;
 }
 
-export type AuditAction = "upload" | "edit" | "delete" | "view";
+export type AuditAction = "upload" | "edit" | "delete" | "view" | "restore" | "purge";
+
+export interface DeletedRecord {
+  id: string;
+  studentName: string;
+  studentNumber: string;
+  batch: string;
+  category: StudentCategory;
+  status: RecordStatus;
+  deletedAt: string;
+}
 
 export interface AuditLogEntry {
   id: string;
