@@ -71,7 +71,7 @@ function DashboardPage() {
     {
       label: "Students Covered",
       value: `${new Set(records.map((r) => r.studentNumber)).size}`,
-      sub: "Honorable and Graduated Students",
+      sub: "Unique students archived so far",
       icon: Users,
     },
   ];
