@@ -3,6 +3,7 @@ import {
   fileKindFromName,
   type AuditAction,
   type AuditLogEntry,
+  type DeletedRecord,
   type RecordStatus,
   type StudentCategory,
   type StudentRecord,
@@ -46,9 +47,30 @@ export async function fetchRecords(): Promise<StudentRecord[]> {
   const { data, error } = await supabase
     .from("records")
     .select(SAFE_COLUMNS)
+    .is("deleted_at", null)
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
   return (data as RecordRow[]).map(mapRecord);
+}
+
+type DeletedRecordRow = RecordRow & { deleted_at: string };
+
+export async function fetchDeletedRecords(): Promise<DeletedRecord[]> {
+  const { data, error } = await supabase
+    .from("records")
+    .select(`${SAFE_COLUMNS}, deleted_at`)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) throw error;
+  return (data as DeletedRecordRow[]).map((row) => ({
+    id: row.id,
+    studentName: row.student_name,
+    studentNumber: row.student_number,
+    batch: row.batch,
+    category: row.student_category as StudentCategory,
+    status: row.status as RecordStatus,
+    deletedAt: row.deleted_at,
+  }));
 }
 
 export async function logAudit(params: {
@@ -214,6 +236,8 @@ export async function renameFile(
 }
 
 export async function deleteRecord(record: StudentRecord, passkey: string | null): Promise<void> {
+  // Soft delete — the Edge Function marks deleted_at, it no longer removes
+  // the row itself. See "Recently Deleted" (restoreRecord/purgeRecord).
   await callFileAccess("delete", record.id, passkey);
 
   await logAudit({
@@ -222,9 +246,14 @@ export async function deleteRecord(record: StudentRecord, passkey: string | null
     recordSummary: summaryOf(record),
     details: { file_name: record.fileName },
   });
+}
 
-  const { error } = await supabase.from("records").delete().eq("id", record.id);
-  if (error) throw error;
+export async function restoreRecord(recordId: string): Promise<void> {
+  await callFileAccess("restore", recordId, null);
+}
+
+export async function purgeRecord(recordId: string): Promise<void> {
+  await callFileAccess("purge", recordId, null);
 }
 
 export async function createSignedUrl(record: StudentRecord, passkey: string | null): Promise<string> {

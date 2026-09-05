@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import type { RecordStatus, StudentCategory } from "@/data/records";
 import { useCreateRecord } from "@/lib/use-records";
-import { cn, formatStudentNumber } from "@/lib/utils";
+import { capitalizeWords, cn, formatStudentNumber } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
@@ -52,7 +52,7 @@ function UploadPage() {
   const [status, setStatus] = useState<RecordStatus | "">("");
   const [passkey, setPasskey] = useState("");
   const [showPasskey, setShowPasskey] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
 
   const submitting = createRecord.isPending;
@@ -63,46 +63,77 @@ function UploadPage() {
     category &&
     status &&
     passkey.trim() &&
-    file;
+    files.length > 0;
 
 
-  const pickFile = (selected: File | undefined | null) => {
+  const pickFiles = (selected: FileList | File[] | undefined | null) => {
     if (!selected) return;
-    const isPdf = selected.type === "application/pdf" || selected.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf) {
-      toast.error("PDF files only", { description: "Please attach a scanned record in PDF format." });
-      return;
+    const incoming = Array.from(selected);
+    const accepted: File[] = [];
+    for (const candidate of incoming) {
+      const isPdf =
+        candidate.type === "application/pdf" || candidate.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        toast.error("PDF files only", {
+          description: `"${candidate.name}" was skipped — please attach scanned records in PDF format.`,
+        });
+        continue;
+      }
+      if (candidate.size > MAX_SIZE) {
+        toast.error("File too large", {
+          description: `"${candidate.name}" was skipped — files must be 25 MB or smaller.`,
+        });
+        continue;
+      }
+      accepted.push(candidate);
     }
-    if (selected.size > MAX_SIZE) {
-      toast.error("File too large", { description: "Scanned records must be 25 MB or smaller." });
-      return;
+    if (accepted.length > 0) {
+      setFiles((prev) => [...prev, ...accepted]);
     }
-    setFile(selected);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready || !file) {
-      toast.error("Please complete all fields and attach a scanned record.");
+    if (!ready || files.length === 0) {
+      toast.error("Please complete all fields and attach at least one scanned record.");
       return;
     }
-    try {
-      await createRecord.mutateAsync({
-        studentName: studentName.trim(),
-        studentNumber: studentNumber.trim(),
-        batch: batch.trim(),
-        category: category as StudentCategory,
-        status: status as RecordStatus,
-        file,
-        passkey: passkey.trim(),
-      });
-      toast.success("Record uploaded", {
+    let successCount = 0;
+    const failed: string[] = [];
+    for (const currentFile of files) {
+      try {
+        await createRecord.mutateAsync({
+          studentName: studentName.trim(),
+          studentNumber: studentNumber.trim(),
+          batch: batch.trim(),
+          category: category as StudentCategory,
+          status: status as RecordStatus,
+          file: currentFile,
+          passkey: passkey.trim(),
+        });
+        successCount += 1;
+      } catch {
+        failed.push(currentFile.name);
+      }
+    }
+    if (successCount > 0) {
+      toast.success(successCount === 1 ? "Record uploaded" : `${successCount} records uploaded`, {
         description: `${studentName.trim()} filed under ${batch.trim()} → ${category} → ${status}.`,
         icon: <CheckCircle2 className="h-4 w-4" />,
       });
+    }
+    if (failed.length > 0) {
+      toast.error(
+        failed.length === 1 ? "One file failed to upload" : `${failed.length} files failed to upload`,
+        { description: failed.join(", ") },
+      );
+    }
+    if (successCount > 0) {
       navigate({ to: "/browse" });
-    } catch {
-      // error toast handled in the mutation
     }
   };
 
@@ -125,7 +156,7 @@ function UploadPage() {
               <Input
                 id="studentName"
                 value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
+                onChange={(e) => setStudentName(capitalizeWords(e.target.value))}
                 placeholder="Juan Dela Cruz"
                 className="h-11 rounded-xl"
               />
@@ -229,7 +260,7 @@ function UploadPage() {
               onDrop={(e) => {
                 e.preventDefault();
                 setDragging(false);
-                pickFile(e.dataTransfer.files?.[0]);
+                pickFiles(e.dataTransfer.files);
               }}
               onClick={() => inputRef.current?.click()}
               role="button"
@@ -246,33 +277,43 @@ function UploadPage() {
                 <UploadCloud className="h-7 w-7 text-primary" />
               </span>
               <p className="mt-4 text-sm font-medium text-foreground">
-                Drag &amp; drop the scanned file here
+                Drag &amp; drop scanned files here
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">or click to browse your computer</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                or click to browse your computer — you can select multiple files
+              </p>
               <input
                 ref={inputRef}
                 type="file"
                 accept=".pdf"
+                multiple
                 className="hidden"
-                onChange={(e) => pickFile(e.target.files?.[0])}
+                onChange={(e) => pickFiles(e.target.files)}
               />
             </div>
 
-            {file && (
-              <div className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
-                <FileUp className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{file.name}</span>
-                <button
-                  type="button"
-                  aria-label="Remove file"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFile(null);
-                  }}
-                  className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+            {files.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {files.map((f, index) => (
+                  <div
+                    key={`${f.name}-${index}`}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5"
+                  >
+                    <FileUp className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{f.name}</span>
+                    <button
+                      type="button"
+                      aria-label="Remove file"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
