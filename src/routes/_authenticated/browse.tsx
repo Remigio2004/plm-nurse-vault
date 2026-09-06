@@ -2,8 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowUpDown,
   ChevronRight,
-  Eye,
-  EyeOff,
   FileText,
   Folder,
   Grid2x2,
@@ -29,6 +27,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Select,
   SelectContent,
@@ -45,8 +51,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { RecordStatus, StudentCategory, StudentRecord } from "@/data/records";
-import { Label } from "@/components/ui/label";
 import { createSignedUrl, unlockFileInfo } from "@/lib/records-api";
 import { useDeleteRecord, useRecords, useRenameFile, useUpdateRecord } from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
@@ -129,6 +135,57 @@ function soloGroup(record: StudentRecord): RecordGroup {
   };
 }
 
+const TABLE_PAGE_SIZE = 6;
+
+function PaginationBar({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <Pagination>
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            className={cn(
+              "rounded-lg border border-transparent text-muted-foreground hover:border-border hover:bg-primary-soft hover:text-primary",
+              page <= 1 && "pointer-events-none opacity-40",
+            )}
+            onClick={(e) => {
+              e.preventDefault();
+              if (page > 1) onChange(page - 1);
+            }}
+          />
+        </PaginationItem>
+        <PaginationItem>
+          <span className="px-2 text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+        </PaginationItem>
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            className={cn(
+              "rounded-lg border border-transparent text-muted-foreground hover:border-border hover:bg-primary-soft hover:text-primary",
+              page >= totalPages && "pointer-events-none opacity-40",
+            )}
+            onClick={(e) => {
+              e.preventDefault();
+              if (page < totalPages) onChange(page + 1);
+            }}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  );
+}
+
 function BrowsePage() {
   const { search } = useVault();
   const { data, isLoading, isError } = useRecords();
@@ -139,17 +196,14 @@ function BrowsePage() {
 
   const [path, setPath] = useState<string[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [activeTab, setActiveTab] = useState<"folders" | "table">("folders");
   const [previewGroup, setPreviewGroup] = useState<RecordGroup | null>(null);
   const [previewRecord, setPreviewRecord] = useState<StudentRecord | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [deleteGroup, setDeleteGroup] = useState<RecordGroup | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null);
-  const [deletePasskey, setDeletePasskey] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<RecordGroup | null>(null);
-  const [editUnlock, setEditUnlock] = useState<{ passkey: string | null; fileName: string } | null>(
-    null,
-  );
+  const [editFileNameOriginal, setEditFileNameOriginal] = useState("");
   const [editStudentName, setEditStudentName] = useState("");
   const [editStudentNumber, setEditStudentNumber] = useState("");
   const [editBatchYear, setEditBatchYear] = useState("");
@@ -157,41 +211,22 @@ function BrowsePage() {
   const [editStatus, setEditStatus] = useState<RecordStatus | "">("");
   const [editFileName, setEditFileName] = useState("");
 
-    const [passkeyPrompt, setPasskeyPrompt] = useState<
-    | { purpose: "open"; record: StudentRecord }
-    | { purpose: "edit"; record: StudentRecord; group: RecordGroup }
-    | { purpose: "delete"; record: StudentRecord }
-    | null
-  >(null);
-  const [passkeyInput, setPasskeyInput] = useState("");
-  const [passkeyShow, setPasskeyShow] = useState(false);
-  const [passkeyError, setPasskeyError] = useState<string | null>(null);
-  const [passkeyBusy, setPasskeyBusy] = useState(false);
-
   const closeEdit = () => {
     setEditingGroup(null);
-    setEditUnlock(null);
+    setEditFileNameOriginal("");
   };
 
   const closeDeletePrompt = () => {
     setPendingDelete(null);
-    setDeletePasskey(null);
   };
 
-  const closePasskeyPrompt = () => {
-    setPasskeyPrompt(null);
-    setPasskeyInput("");
-    setPasskeyError(null);
-    setPasskeyShow(false);
-  };
-
-  const startEdit = async (group: RecordGroup, passkey: string | null) => {
+  const startEdit = async (group: RecordGroup) => {
     if (group.records.length === 1) {
-      const info = await unlockFileInfo(group.records[0], passkey);
-      setEditUnlock({ passkey, fileName: info.fileName });
+      const info = await unlockFileInfo(group.records[0]);
+      setEditFileNameOriginal(info.fileName);
       setEditFileName(info.fileName);
     } else {
-      setEditUnlock(null);
+      setEditFileNameOriginal("");
       setEditFileName("");
     }
     setEditingGroup(group);
@@ -203,11 +238,7 @@ function BrowsePage() {
   };
 
   const requestEdit = (group: RecordGroup) => {
-    if (group.records.length === 1 && group.records[0].hasPasskey) {
-      setPasskeyPrompt({ purpose: "edit", record: group.records[0], group });
-      return;
-    }
-    void startEdit(group, null).catch((error) => {
+    void startEdit(group).catch((error) => {
       toast.error("Could not open record", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
@@ -215,11 +246,6 @@ function BrowsePage() {
   };
 
   const requestDelete = (record: StudentRecord) => {
-    if (record.hasPasskey) {
-      setPasskeyPrompt({ purpose: "delete", record });
-      return;
-    }
-    setDeletePasskey(null);
     setPendingDelete(record);
   };
 
@@ -232,42 +258,11 @@ function BrowsePage() {
   };
 
   const requestOpenFile = (record: StudentRecord) => {
-    if (record.hasPasskey) {
-      setPasskeyPrompt({ purpose: "open", record });
-      return;
-    }
-    void openFile(record, null).catch((error) => {
+    void openFile(record).catch((error) => {
       toast.error("Could not open file", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
     });
-  };
-
-  const submitPasskey = async () => {
-    if (!passkeyPrompt) return;
-    setPasskeyBusy(true);
-    setPasskeyError(null);
-    try {
-      if (passkeyPrompt.purpose === "open") {
-        await openFile(passkeyPrompt.record, passkeyInput);
-        closePasskeyPrompt();
-      } else if (passkeyPrompt.purpose === "edit") {
-        await startEdit(passkeyPrompt.group, passkeyInput);
-        closePasskeyPrompt();
-      } else {
-        const record = passkeyPrompt.record;
-        const passkey = passkeyInput;
-        closePasskeyPrompt();
-        setTimeout(() => {
-          setDeletePasskey(passkey);
-          setPendingDelete(record);
-        }, 0);
-      }
-    } catch (error) {
-      setPasskeyError(error instanceof Error ? error.message : "Incorrect passkey.");
-    } finally {
-      setPasskeyBusy(false);
-    }
   };
 
   const [batchFilter, setBatchFilter] = useState("all");
@@ -277,6 +272,16 @@ function BrowsePage() {
     key: "uploadDate",
     dir: "desc",
   });
+  const [tablePage, setTablePage] = useState(1);
+  const [folderPage, setFolderPage] = useState(1);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [search, batchFilter, categoryFilter, statusFilter, sort]);
+
+  useEffect(() => {
+    setFolderPage(1);
+  }, [path, search, view]);
 
   const batches = useMemo(
     () => Array.from(new Set(records.map((r) => r.batch))).sort(),
@@ -310,6 +315,29 @@ function BrowsePage() {
   const searchResults = isSearching ? records.filter((r) => matches(r, search)) : [];
   const searchGroups = useMemo(() => groupRecords(searchResults), [searchResults]);
 
+  const FOLDER_PAGE_SIZE = view === "list" ? 4 : 8;
+
+  const folderTotalPages = Math.max(1, Math.ceil(folders.length / FOLDER_PAGE_SIZE));
+  const currentFolderPage = Math.min(folderPage, folderTotalPages);
+  const pagedFolders = folders.slice(
+    (currentFolderPage - 1) * FOLDER_PAGE_SIZE,
+    currentFolderPage * FOLDER_PAGE_SIZE,
+  );
+
+  const folderGroupsTotalPages = Math.max(1, Math.ceil(folderGroups.length / FOLDER_PAGE_SIZE));
+  const currentFolderGroupsPage = Math.min(folderPage, folderGroupsTotalPages);
+  const pagedFolderGroups = folderGroups.slice(
+    (currentFolderGroupsPage - 1) * FOLDER_PAGE_SIZE,
+    currentFolderGroupsPage * FOLDER_PAGE_SIZE,
+  );
+
+  const searchGroupsTotalPages = Math.max(1, Math.ceil(searchGroups.length / FOLDER_PAGE_SIZE));
+  const currentSearchGroupsPage = Math.min(folderPage, searchGroupsTotalPages);
+  const pagedSearchGroups = searchGroups.slice(
+    (currentSearchGroupsPage - 1) * FOLDER_PAGE_SIZE,
+    currentSearchGroupsPage * FOLDER_PAGE_SIZE,
+  );
+
   const tableRows = useMemo(() => {
     const rows = records.filter(
       (r) =>
@@ -324,6 +352,15 @@ function BrowsePage() {
     });
   }, [records, search, batchFilter, categoryFilter, statusFilter, sort]);
 
+  const tableTotalPages = Math.max(1, Math.ceil(tableRows.length / TABLE_PAGE_SIZE));
+  const currentTablePage = Math.min(tablePage, tableTotalPages);
+  const pagedTableRows = tableRows.slice(
+    (currentTablePage - 1) * TABLE_PAGE_SIZE,
+    currentTablePage * TABLE_PAGE_SIZE,
+  );
+  const tableRangeStart = tableRows.length === 0 ? 0 : (currentTablePage - 1) * TABLE_PAGE_SIZE + 1;
+  const tableRangeEnd = Math.min(currentTablePage * TABLE_PAGE_SIZE, tableRows.length);
+
   const toggleSort = (key: SortKey) =>
     setSort((prev) =>
       prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
@@ -332,9 +369,8 @@ function BrowsePage() {
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const target = pendingDelete;
-    const passkey = deletePasskey;
     closeDeletePrompt();
-    await deleteMutation.mutateAsync({ record: target, passkey }).then(
+    await deleteMutation.mutateAsync(target).then(
       () => toast.success("Record deleted", { description: target.studentName }),
       () => undefined,
     );
@@ -344,8 +380,7 @@ function BrowsePage() {
     if (!editingGroup) return;
     const group = editingGroup;
     const nextBatch = editBatchYear ? `Batch ${editBatchYear}` : group.batch;
-    const passkey = editUnlock?.passkey ?? null;
-    const originalFileName = editUnlock?.fileName ?? "";
+    const originalFileName = editFileNameOriginal;
     const trimmedFileName = editFileName.trim();
     const soleRecord = group.records.length === 1 ? group.records[0] : null;
     closeEdit();
@@ -375,7 +410,7 @@ function BrowsePage() {
 
     if (soleRecord && trimmedFileName && trimmedFileName !== originalFileName) {
       await renameMutation
-        .mutateAsync({ record: soleRecord, passkey, newFileName: trimmedFileName })
+        .mutateAsync({ record: soleRecord, newFileName: trimmedFileName })
         .then(
           () => toast.success("File renamed", { description: trimmedFileName }),
           () => undefined,
@@ -383,11 +418,11 @@ function BrowsePage() {
     }
   };
 
-  const openFile = async (record: StudentRecord, passkey: string | null) => {
+  const openFile = async (record: StudentRecord) => {
     setPreviewLoading(true);
     try {
-      const url = await createSignedUrl(record, passkey);
-      setPreviewUrl(url);
+      const url = await createSignedUrl(record);
+      window.open(url, "_blank", "noopener,noreferrer");
     } finally {
       setPreviewLoading(false);
     }
@@ -396,41 +431,28 @@ function BrowsePage() {
   const openPreview = (group: RecordGroup) => {
     setPreviewGroup(group);
     setPreviewRecord(group.records.length === 1 ? group.records[0] : null);
-    setPreviewUrl(null);
     setPreviewLoading(false);
   };
 
   const closePreview = () => {
     setPreviewGroup(null);
     setPreviewRecord(null);
-    setPreviewUrl(null);
     setPreviewLoading(false);
   };
 
   const selectPreviewFile = (record: StudentRecord) => {
     setPreviewRecord(record);
-    setPreviewUrl(null);
     setPreviewLoading(false);
   };
 
   const backToFileList = () => {
     setPreviewRecord(null);
-    setPreviewUrl(null);
     setPreviewLoading(false);
   };
 
   const openRecordDirectly = (record: StudentRecord) => {
     openPreview(soloGroup(record));
   };
-
-  useEffect(() => {
-    if (!previewUrl) return;
-    const timer = setTimeout(() => {
-      closePreview();
-    }, 5 * 60 * 1000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewUrl]);
 
   if (isLoading || isError) {
     return (
@@ -451,17 +473,28 @@ function BrowsePage() {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
-      <Tabs defaultValue="folders" className="space-y-6">
-
-        <TabsList className="rounded-xl bg-muted p-1">
-          <TabsTrigger value="folders" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
-            Folder View
-          </TabsTrigger>
-          <TabsTrigger value="table" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
-            Records Table
-          </TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as "folders" | "table")}
+        className="space-y-6"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <TabsList className="rounded-xl bg-muted p-1">
+            <TabsTrigger value="folders" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
+              Folder View
+            </TabsTrigger>
+            <TabsTrigger value="table" className="rounded-lg px-4 data-[state=active]:bg-background data-[state=active]:text-primary">
+              Records Table
+            </TabsTrigger>
+          </TabsList>
+          {activeTab === "table" && (
+            <p className="text-xs text-muted-foreground">
+              Showing {tableRangeStart}–{tableRangeEnd} of {tableRows.length} records.
+            </p>
+          )}
+        </div>
 
         <TabsContent value="folders" className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -500,28 +533,45 @@ function BrowsePage() {
             </nav>
 
             <div className="flex items-center gap-1 rounded-xl border border-border bg-background p-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Grid view"
-                onClick={() => setView("grid")}
-                className={cn("h-8 w-8 rounded-lg", view === "grid" && "bg-primary-soft text-primary")}
-              >
-                <Grid2x2 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="List view"
-                onClick={() => setView("list")}
-                className={cn("h-8 w-8 rounded-lg", view === "list" && "bg-primary-soft text-primary")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Grid view"
+                    onClick={() => setView("grid")}
+                    className={cn(
+                      "h-8 w-8 rounded-lg",
+                      view === "grid" && "bg-primary-soft text-primary",
+                    )}
+                  >
+                    <Grid2x2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Grid view</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="List view"
+                    onClick={() => setView("list")}
+                    className={cn(
+                      "h-8 w-8 rounded-lg",
+                      view === "list" && "bg-primary-soft text-primary",
+                    )}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>List view</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
           {!isSearching && folders.length > 0 && (
+            <>
             <div
               className={cn(
                 view === "grid"
@@ -529,7 +579,7 @@ function BrowsePage() {
                   : "flex flex-col gap-2",
               )}
             >
-              {folders.map((folder) => (
+              {pagedFolders.map((folder) => (
                 <button
                   key={folder.name}
                   onClick={() => setPath([...path, folder.name])}
@@ -558,9 +608,16 @@ function BrowsePage() {
                 </button>
               ))}
             </div>
+            <PaginationBar
+              page={currentFolderPage}
+              totalPages={folderTotalPages}
+              onChange={setFolderPage}
+            />
+            </>
           )}
 
           {!isSearching && path.length >= 3 && (
+            <>
             <div
               className={cn(
                 view === "grid"
@@ -568,7 +625,7 @@ function BrowsePage() {
                   : "flex flex-col gap-2",
               )}
             >
-              {folderGroups.map((group) => (
+              {pagedFolderGroups.map((group) => (
                 <div
                   key={group.key}
                   className={cn(
@@ -608,24 +665,34 @@ function BrowsePage() {
                     </span>
                   </button>
                   <div className={cn("flex gap-1", view === "grid" && "mt-4")}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Edit record"
-                      className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                      onClick={() => requestEdit(group)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete record"
-                      className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => requestDeleteGroup(group)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Edit record"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                          onClick={() => requestEdit(group)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit record</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Delete record"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => requestDeleteGroup(group)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete record</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               ))}
@@ -635,9 +702,16 @@ function BrowsePage() {
                 </p>
               )}
             </div>
+            <PaginationBar
+              page={currentFolderGroupsPage}
+              totalPages={folderGroupsTotalPages}
+              onChange={setFolderPage}
+            />
+            </>
           )}
 
           {isSearching && (
+            <>
             <div
               className={cn(
                 view === "grid"
@@ -645,7 +719,7 @@ function BrowsePage() {
                   : "flex flex-col gap-2",
               )}
             >
-              {searchGroups.map((group) => (
+              {pagedSearchGroups.map((group) => (
                 <div
                   key={group.key}
                   className={cn(
@@ -696,24 +770,34 @@ function BrowsePage() {
                     </span>
                   </button>
                   <div className={cn("flex gap-1", view === "grid" && "mt-4")}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Edit record"
-                      className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                      onClick={() => requestEdit(group)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete record"
-                      className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => requestDeleteGroup(group)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Edit record"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                          onClick={() => requestEdit(group)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit record</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Delete record"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => requestDeleteGroup(group)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete record</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               ))}
@@ -723,6 +807,12 @@ function BrowsePage() {
                 </p>
               )}
             </div>
+            <PaginationBar
+              page={currentSearchGroupsPage}
+              totalPages={searchGroupsTotalPages}
+              onChange={setFolderPage}
+            />
+            </>
           )}
         </TabsContent>
 
@@ -812,7 +902,7 @@ function BrowsePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tableRows.map((record) => (
+                  {pagedTableRows.map((record) => (
                     <TableRow
                       key={record.id}
                       className="cursor-pointer transition-colors hover:bg-surface"
@@ -851,24 +941,34 @@ function BrowsePage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Edit record"
-                            className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                            onClick={() => requestEdit(soloGroup(record))}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Delete record"
-                            className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => requestDelete(record)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Edit record"
+                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                                onClick={() => requestEdit(soloGroup(record))}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit record</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Delete record"
+                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => requestDelete(record)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete record</TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -884,14 +984,16 @@ function BrowsePage() {
               </Table>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Showing {tableRows.length} of {records.length} records.
-          </p>
+          <PaginationBar
+            page={currentTablePage}
+            totalPages={tableTotalPages}
+            onChange={setTablePage}
+          />
         </TabsContent>
       </Tabs>
 
       <Dialog open={!!previewGroup} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className={cn("rounded-xl", previewUrl ? "sm:max-w-5xl" : "sm:max-w-2xl")}>
+        <DialogContent className="rounded-xl sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-base">{previewGroup?.studentName}</DialogTitle>
           </DialogHeader>
@@ -911,14 +1013,6 @@ function BrowsePage() {
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     File {index + 1} — uploaded {record.uploadDate}
                   </span>
-                  {record.hasPasskey && (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 rounded-lg border-border text-muted-foreground"
-                    >
-                      Locked
-                    </Badge>
-                  )}
                 </button>
               ))}
             </div>
@@ -934,28 +1028,22 @@ function BrowsePage() {
                   ← Back to files
                 </button>
               )}
-              {previewUrl ? (
-                <div className="overflow-hidden rounded-xl border border-input">
-                  <iframe src={previewUrl} title="Document preview" className="h-[62vh] w-full" />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
-                  <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
-                    <FileText className="h-8 w-8 text-gold-foreground" />
-                  </span>
-                  <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Opens here using a temporary signed link.
-                  </p>
-                  <Button
-                    className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-                    onClick={() => requestOpenFile(previewRecord)}
-                    disabled={previewLoading}
-                  >
-                    {previewLoading ? "Loading…" : "Open file"}
-                  </Button>
-                </div>
-              )}
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-input bg-surface px-6 py-10 text-center">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-soft">
+                  <FileText className="h-8 w-8 text-gold-foreground" />
+                </span>
+                <p className="mt-4 text-sm font-medium text-foreground">Secured document</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Opens in a new tab using a temporary signed link.
+                </p>
+                <Button
+                  className="mt-4 rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
+                  onClick={() => requestOpenFile(previewRecord)}
+                  disabled={previewLoading}
+                >
+                  {previewLoading ? "Opening…" : "Open file"}
+                </Button>
+              </div>
             </>
           )}
 
@@ -1014,7 +1102,7 @@ function BrowsePage() {
 
             <div className="space-y-2">
               <Label htmlFor="editBatchYear">Batch</Label>
-              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring">
+              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent shadow-sm focus-within:ring-1 focus-within:ring-ring">
                 <input
                   id="editBatchYear"
                   inputMode="numeric"
@@ -1087,7 +1175,7 @@ function BrowsePage() {
         </DialogContent>
       </Dialog>
 
-            <Dialog open={!!deleteGroup} onOpenChange={(open) => !open && setDeleteGroup(null)}>
+      <Dialog open={!!deleteGroup} onOpenChange={(open) => !open && setDeleteGroup(null)}>
         <DialogContent className="rounded-xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">Select a file to delete</DialogTitle>
@@ -1110,14 +1198,6 @@ function BrowsePage() {
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                   File {index + 1} — uploaded {record.uploadDate}
                 </span>
-                {record.hasPasskey && (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 rounded-lg border-border text-muted-foreground"
-                  >
-                    Locked
-                  </Badge>
-                )}
               </button>
             ))}
           </div>
@@ -1129,59 +1209,13 @@ function BrowsePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!passkeyPrompt} onOpenChange={(open) => !open && closePasskeyPrompt()}>
-        <DialogContent className="rounded-xl sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base">Enter passkey</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {passkeyPrompt?.record.studentName} is locked. Enter its passkey to continue.
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="passkeyInput">Passkey</Label>
-            <div className="relative">
-              <Input
-                id="passkeyInput"
-                type={passkeyShow ? "text" : "password"}
-                value={passkeyInput}
-                onChange={(e) => setPasskeyInput(e.target.value)}
-                className="h-11 rounded-xl pr-10"
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && void submitPasskey()}
-              />
-              <button
-                type="button"
-                onClick={() => setPasskeyShow((v) => !v)}
-                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-                aria-label={passkeyShow ? "Hide passkey" : "Show passkey"}
-              >
-                {passkeyShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {passkeyError && <p className="text-xs text-destructive">{passkeyError}</p>}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={closePasskeyPrompt}>
-              Cancel
-            </Button>
-            <Button
-              className="rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-              onClick={() => void submitPasskey()}
-              disabled={passkeyBusy || !passkeyInput}
-            >
-              {passkeyBusy ? "Verifying..." : "Unlock"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && closeDeletePrompt()}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this record?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.studentName}'s record and its stored file will be permanently deleted.
-              This action is recorded in the activity log.
+              {pendingDelete?.studentName}'s record will be moved to Recently Deleted. You can
+              restore it later, or it will be permanently removed after 30 days.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1196,5 +1230,6 @@ function BrowsePage() {
         </AlertDialogContent>
       </AlertDialog>
     </AppShell>
+    </TooltipProvider>
   );
 }

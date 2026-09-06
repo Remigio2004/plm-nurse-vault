@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
-  fileKindFromName,
   type AuditAction,
   type AuditLogEntry,
   type DeletedRecord,
@@ -9,10 +8,8 @@ import {
   type StudentRecord,
 } from "@/data/records";
 
-export const RECORDS_BUCKET = "student-records";
-
 const SAFE_COLUMNS =
-  "id, student_name, student_number, batch, student_category, status, uploaded_at, updated_at, has_passkey";
+  "id, student_name, student_number, batch, student_category, status, uploaded_at, updated_at";
 
 type RecordRow = {
   id: string;
@@ -23,7 +20,6 @@ type RecordRow = {
   status: string;
   uploaded_at: string;
   updated_at: string;
-  has_passkey: boolean;
 };
 
 const mapRecord = (row: RecordRow): StudentRecord => ({
@@ -33,12 +29,10 @@ const mapRecord = (row: RecordRow): StudentRecord => ({
   batch: row.batch,
   category: row.student_category as StudentCategory,
   status: row.status as RecordStatus,
-  // Not readable until a passkey is verified — see Phase 2.
   fileName: null,
   fileType: null,
   fileSize: null,
   storagePath: null,
-  hasPasskey: row.has_passkey,
   uploadedAt: row.uploaded_at,
   uploadDate: row.uploaded_at.slice(0, 10),
 });
@@ -103,15 +97,29 @@ export async function createRecord(input: {
   category: StudentCategory;
   status: RecordStatus;
   file: File;
-  passkey: string;
 }): Promise<StudentRecord> {
-  const ext = input.file.name.includes(".") ? input.file.name.split(".").pop()! : "bin";
-  const storagePath = `${input.batch}/${crypto.randomUUID()}.${ext}`.replace(/\s+/g, "_");
+  const formData = new FormData();
+  formData.append("file", input.file, input.file.name);
 
-  const upload = await supabase.storage
-    .from(RECORDS_BUCKET)
-    .upload(storagePath, input.file, input.file.type ? { contentType: input.file.type } : {});
-  if (upload.error) throw upload.error;
+  const { data: uploadData, error: uploadError } = await supabase.functions.invoke(
+    "cloudinary-upload",
+    { body: formData },
+  );
+  if (uploadError) {
+    let msg = uploadError.message ?? "Upload failed";
+    const response = (uploadError as { context?: Response }).context;
+    if (response && typeof response.json === "function") {
+      try {
+        const body = await response.json();
+        if (body?.error) msg = body.error;
+      } catch {
+        // fall back to uploadError.message
+      }
+    }
+    throw new Error(msg);
+  }
+  const publicId = (uploadData as { publicId: string }).publicId;
+  const ext = input.file.name.includes(".") ? input.file.name.split(".").pop()! : "pdf";
 
   const { data, error } = await supabase
     .from("records")
@@ -121,26 +129,25 @@ export async function createRecord(input: {
       batch: input.batch,
       student_category: input.category,
       status: input.status,
-      storage_path: storagePath,
+      cloudinary_public_id: publicId,
       file_name: input.file.name,
       file_type: ext.toLowerCase(),
       file_size: input.file.size,
-      passkey_hash: input.passkey.trim(),
     })
     .select(SAFE_COLUMNS)
     .single();
 
-  if (error) {
-    await supabase.storage.from(RECORDS_BUCKET).remove([storagePath]);
-    throw error;
-  }
+  if (error) throw error;
 
   const record = mapRecord(data as RecordRow);
   await logAudit({
     action: "upload",
     recordId: record.id,
     recordSummary: summaryOf(record),
-    details: { file_name: record.fileName, folder: `${record.batch}/${record.category}/${record.status}` },
+    details: {
+      file_name: input.file.name,
+      folder: `${record.batch}/${record.category}/${record.status}`,
+    },
   });
   return record;
 }
@@ -193,16 +200,15 @@ export async function updateRecord(
   });
 }
 
-type FileAccessAction = "open" | "unlock" | "rename" | "delete";
+type FileAccessAction = "open" | "unlock" | "rename" | "delete" | "restore" | "purge";
 
 async function callFileAccess<T = unknown>(
   action: FileAccessAction,
   recordId: string,
-  passkey: string | null,
   extra?: Record<string, unknown>,
 ): Promise<T> {
   const { data, error } = await supabase.functions.invoke("file-access", {
-    body: { recordId, passkey, action, ...extra },
+    body: { recordId, action, ...extra },
   });
   if (error) {
     let msg = error.message ?? "Request failed";
@@ -222,24 +228,16 @@ async function callFileAccess<T = unknown>(
 
 export async function unlockFileInfo(
   record: StudentRecord,
-  passkey: string | null,
 ): Promise<{ fileName: string; fileType: string; fileSize: number }> {
-  return callFileAccess("unlock", record.id, passkey);
+  return callFileAccess("unlock", record.id);
 }
 
-export async function renameFile(
-  record: StudentRecord,
-  passkey: string | null,
-  newFileName: string,
-): Promise<void> {
-  await callFileAccess("rename", record.id, passkey, { newFileName });
+export async function renameFile(record: StudentRecord, newFileName: string): Promise<void> {
+  await callFileAccess("rename", record.id, { newFileName });
 }
 
-export async function deleteRecord(record: StudentRecord, passkey: string | null): Promise<void> {
-  // Soft delete — the Edge Function marks deleted_at, it no longer removes
-  // the row itself. See "Recently Deleted" (restoreRecord/purgeRecord).
-  await callFileAccess("delete", record.id, passkey);
-
+export async function deleteRecord(record: StudentRecord): Promise<void> {
+  await callFileAccess("delete", record.id);
   await logAudit({
     action: "delete",
     recordId: record.id,
@@ -249,15 +247,15 @@ export async function deleteRecord(record: StudentRecord, passkey: string | null
 }
 
 export async function restoreRecord(recordId: string): Promise<void> {
-  await callFileAccess("restore", recordId, null);
+  await callFileAccess("restore", recordId);
 }
 
 export async function purgeRecord(recordId: string): Promise<void> {
-  await callFileAccess("purge", recordId, null);
+  await callFileAccess("purge", recordId);
 }
 
-export async function createSignedUrl(record: StudentRecord, passkey: string | null): Promise<string> {
-  const { url } = await callFileAccess<{ url: string }>("open", record.id, passkey);
+export async function createSignedUrl(record: StudentRecord): Promise<string> {
+  const { url } = await callFileAccess<{ url: string }>("open", record.id);
   return url;
 }
 

@@ -9,15 +9,15 @@ export interface StudentRecord {
   batch: string;
   category: StudentCategory;
   status: RecordStatus;
-  // File details are only known once a correct passkey has been verified
-  // server-side; the base list fetch never receives them.
+  // File name/type/size are fetched on demand via the file-access Edge
+  // Function's "unlock" action — storage/Cloudinary identifiers stay
+  // server-side only.
   fileName: string | null;
   fileType: FileKind | null;
   fileSize: number | null;
   storagePath: string | null;
   uploadDate: string;
   uploadedAt: string;
-  hasPasskey: boolean;
 }
 
 export type AuditAction = "upload" | "edit" | "delete" | "view" | "restore" | "purge";
