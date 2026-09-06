@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, Eye, EyeOff, FileUp, UploadCloud, X } from "lucide-react";
+import { CheckCircle2, FileUp, UploadCloud, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/upload")({
   component: UploadPage,
 });
 
-const MAX_SIZE = 25 * 1024 * 1024;
+const MAX_SIZE = 120 * 1024 * 1024;
 
 function UploadPage() {
   const navigate = useNavigate();
@@ -50,8 +50,6 @@ function UploadPage() {
   const batch = batchYear ? `Batch ${batchYear}` : "";
   const [category, setCategory] = useState<StudentCategory | "">("");
   const [status, setStatus] = useState<RecordStatus | "">("");
-  const [passkey, setPasskey] = useState("");
-  const [showPasskey, setShowPasskey] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
 
@@ -62,7 +60,6 @@ function UploadPage() {
     batch.trim() &&
     category &&
     status &&
-    passkey.trim() &&
     files.length > 0;
 
 
@@ -81,7 +78,7 @@ function UploadPage() {
       }
       if (candidate.size > MAX_SIZE) {
         toast.error("File too large", {
-          description: `"${candidate.name}" was skipped — files must be 25 MB or smaller.`,
+          description: `"${candidate.name}" was skipped — files must be 120 MB or smaller.`,
         });
         continue;
       }
@@ -113,7 +110,6 @@ function UploadPage() {
           category: category as StudentCategory,
           status: status as RecordStatus,
           file: currentFile,
-          passkey: passkey.trim(),
         });
         successCount += 1;
       } catch {
@@ -177,7 +173,7 @@ function UploadPage() {
 
             <div className="space-y-2">
               <Label htmlFor="batchYear">Batch</Label>
-              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring">
+              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent shadow-sm focus-within:ring-1 focus-within:ring-ring">
                 <input
                   id="batchYear"
                   inputMode="numeric"
@@ -219,37 +215,13 @@ function UploadPage() {
               </Select>
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="passkey">File Passkey</Label>
-              <div className="relative sm:max-w-xs">
-                <Input
-                  id="passkey"
-                  type={showPasskey ? "text" : "password"}
-                  value={passkey}
-                  onChange={(e) => setPasskey(e.target.value)}
-                  placeholder="Required to open this file later"
-                  className="h-11 rounded-xl pr-10"
-                />
-                <button
-                  type="button"
-                  aria-label={showPasskey ? "Hide passkey" : "Show passkey"}
-                  onClick={() => setShowPasskey((v) => !v)}
-                  className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                This exact passkey will be required every time this file is opened.
-              </p>
-            </div>
           </div>
         </div>
 
         <div className="space-y-6">
           <div className="vault-card p-6">
             <h2 className="text-base font-semibold text-foreground">Scanned Record</h2>
-            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 25 MB</p>
+            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 120 MB</p>
 
             <div
               onDragOver={(e) => {

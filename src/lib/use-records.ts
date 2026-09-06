@@ -63,8 +63,7 @@ export function useUpdateRecord() {
 export function useDeleteRecord() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { record: StudentRecord; passkey: string | null }) =>
-      deleteRecord(vars.record, vars.passkey),
+    mutationFn: (record: StudentRecord) => deleteRecord(record),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["records"] });
       void qc.invalidateQueries({ queryKey: ["deleted_records"] });
@@ -77,8 +76,8 @@ export function useDeleteRecord() {
 export function useRenameFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { record: StudentRecord; passkey: string | null; newFileName: string }) =>
-      renameFile(vars.record, vars.passkey, vars.newFileName),
+    mutationFn: (vars: { record: StudentRecord; newFileName: string }) =>
+      renameFile(vars.record, vars.newFileName),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["records"] });
       void qc.invalidateQueries({ queryKey: ["audit_logs"] });
