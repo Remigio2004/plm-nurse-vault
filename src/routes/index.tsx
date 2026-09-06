@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock, Mail, ShieldCheck } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -48,10 +48,31 @@ function LoginPage() {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    const { data, error } = await supabase.functions.invoke("auth-login", {
+      body: { email, password },
+    });
     setLoading(false);
+
     if (error) {
-      toast.error("Sign in failed", { description: error.message });
+      let message = "Invalid email or password";
+      const response = (error as { context?: Response }).context;
+      if (response && typeof response.json === "function") {
+        try {
+          const body = await response.json();
+          if (body?.error) message = body.error;
+        } catch {
+          // fall back to default message
+        }
+      }
+      toast.error("Sign in failed", { description: message });
+      return;
+    }
+
+    const { access_token, refresh_token } = data as { access_token: string; refresh_token: string };
+    const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (sessionError) {
+      toast.error("Sign in failed", { description: sessionError.message });
       return;
     }
     navigate({ to: "/dashboard", replace: true });
@@ -147,13 +168,6 @@ function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 flex items-center gap-2 rounded-xl bg-gold-soft px-3 py-2.5">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-gold-foreground" />
-            <p className="text-xs text-gold-foreground">
-              UI prototype — any credentials will take you to the dashboard.
-            </p>
-          </div>
         </div>
       </div>
     </div>
