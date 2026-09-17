@@ -1,5 +1,5 @@
 export type StudentCategory = "CN Graduate" | "CN Honorable Dismissal" | "CN Transferee" | "CN Others";
-export type RecordStatus = "Regular" | "Irregular";
+export type RecordStatus = "Regular" | "Irregular" | "N/A";
 export type FileKind = "pdf" | "docx" | "xlsx";
 
 export interface StudentRecord {

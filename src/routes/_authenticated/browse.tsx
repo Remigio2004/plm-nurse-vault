@@ -104,7 +104,7 @@ type RecordGroup = {
 function groupRecords(records: StudentRecord[]): RecordGroup[] {
   const map = new Map<string, RecordGroup>();
   for (const r of records) {
-    const key = `${r.studentNumber}|${r.batch}|${r.category}|${r.status}`;
+    const key = `${r.studentNumber}|${r.studentName}|${r.batch}|${r.category}|${r.status}`;
     const existing = map.get(key);
     if (existing) {
       existing.records.push(r);
@@ -853,6 +853,7 @@ function BrowsePage() {
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="Regular">Regular</SelectItem>
                 <SelectItem value="Irregular">Irregular</SelectItem>
+                <SelectItem value="N/A">N/A</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -930,7 +931,9 @@ function BrowsePage() {
                             "rounded-lg",
                             record.status === "Regular"
                               ? "border-accent/40 text-secondary"
-                              : "border-gold/50 text-gold-foreground",
+                              : record.status === "Irregular"
+                                ? "border-gold/50 text-gold-foreground"
+                                : "border-border text-muted-foreground",
                           )}
                         >
                           {record.status}
@@ -1139,11 +1142,13 @@ function BrowsePage() {
                 <SelectContent className="rounded-xl">
                   <SelectItem value="Regular">Regular</SelectItem>
                   <SelectItem value="Irregular">Irregular</SelectItem>
+                  <SelectItem value="N/A">N/A</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {editingGroup && editingGroup.records.length > 1 && (
+
               <p className="text-xs text-muted-foreground sm:col-span-2">
                 Editing shared details for {editingGroup.records.length} files.
               </p>

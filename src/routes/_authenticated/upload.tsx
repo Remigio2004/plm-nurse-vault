@@ -37,7 +37,10 @@ export const Route = createFileRoute("/_authenticated/upload")({
   component: UploadPage,
 });
 
-const MAX_SIZE = 120 * 1024 * 1024;
+// Matches the Supabase Storage bucket's file size limit — files under
+// 10 MB go to Cloudinary automatically, files 10-50 MB fall back to
+// Supabase Storage. The routing itself is invisible to the user.
+const MAX_SIZE = 50 * 1024 * 1024;
 
 function UploadPage() {
   const navigate = useNavigate();
@@ -56,12 +59,10 @@ function UploadPage() {
   const submitting = createRecord.isPending;
   const ready =
     studentName.trim() &&
-    studentNumber.trim() &&
     batch.trim() &&
     category &&
     status &&
     files.length > 0;
-
 
   const pickFiles = (selected: FileList | File[] | undefined | null) => {
     if (!selected) return;
@@ -78,7 +79,7 @@ function UploadPage() {
       }
       if (candidate.size > MAX_SIZE) {
         toast.error("File too large", {
-          description: `"${candidate.name}" was skipped — files must be 120 MB or smaller.`,
+          description: `"${candidate.name}" was skipped — files must be 50 MB or smaller.`,
         });
         continue;
       }
@@ -101,19 +102,24 @@ function UploadPage() {
     }
     let successCount = 0;
     const failed: string[] = [];
+    const duplicates: string[] = [];
     for (const currentFile of files) {
       try {
         await createRecord.mutateAsync({
           studentName: studentName.trim(),
-          studentNumber: studentNumber.trim(),
+          studentNumber: studentNumber.trim() || "-",
           batch: batch.trim(),
           category: category as StudentCategory,
           status: status as RecordStatus,
           file: currentFile,
         });
         successCount += 1;
-      } catch {
-        failed.push(currentFile.name);
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Duplicate file:")) {
+          duplicates.push(currentFile.name);
+        } else {
+          failed.push(currentFile.name);
+        }
       }
     }
     if (successCount > 0) {
@@ -121,6 +127,14 @@ function UploadPage() {
         description: `${studentName.trim()} filed under ${batch.trim()} → ${category} → ${status}.`,
         icon: <CheckCircle2 className="h-4 w-4" />,
       });
+    }
+    if (duplicates.length > 0) {
+      toast.error(
+        duplicates.length === 1 ? "Duplicate file skipped" : `${duplicates.length} duplicate files skipped`,
+        {
+          description: `${duplicates.join(", ")} — already on file for ${studentName.trim()} (Student Number: ${studentNumber.trim() || "-"}).`,
+        },
+      );
     }
     if (failed.length > 0) {
       toast.error(
@@ -159,7 +173,7 @@ function UploadPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="studentNumber">Student Number</Label>
+              <Label htmlFor="studentNumber">Student Number (optional)</Label>
               <Input
                 id="studentNumber"
                 inputMode="numeric"
@@ -211,6 +225,7 @@ function UploadPage() {
                 <SelectContent className="rounded-xl">
                   <SelectItem value="Regular">Regular</SelectItem>
                   <SelectItem value="Irregular">Irregular</SelectItem>
+                  <SelectItem value="N/A">N/A</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -221,7 +236,7 @@ function UploadPage() {
         <div className="space-y-6">
           <div className="vault-card p-6">
             <h2 className="text-base font-semibold text-foreground">Scanned Record</h2>
-            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 120 MB</p>
+            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 50 MB</p>
 
             <div
               onDragOver={(e) => {

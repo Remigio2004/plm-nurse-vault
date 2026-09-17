@@ -11,6 +11,11 @@ import {
 const SAFE_COLUMNS =
   "id, student_name, student_number, batch, student_category, status, uploaded_at, updated_at";
 
+// Cloudinary's Free plan rejects "raw" (non-image/video) files over 10 MB.
+// Anything larger falls back to Supabase Storage instead (bucket allows 50 MB).
+const CLOUDINARY_RAW_LIMIT = 10 * 1024 * 1024;
+const RECORDS_BUCKET = "student-records";
+
 type RecordRow = {
   id: string;
   student_name: string;
@@ -90,6 +95,32 @@ export async function logAudit(params: {
 const summaryOf = (r: { studentName: string; studentNumber: string }) =>
   `${r.studentName} (${r.studentNumber})`;
 
+// Calls the check-duplicate Edge Function (service role) so file_name is
+// checked without ever being queryable from the browser's own session.
+async function checkDuplicateFile(
+  studentName: string,
+  studentNumber: string,
+  fileName: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.functions.invoke("check-duplicate", {
+    body: { studentName, studentNumber, fileName },
+  });
+  if (error) {
+    let msg = error.message ?? "Duplicate check failed";
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === "function") {
+      try {
+        const body = await response.json();
+        if (body?.error) msg = body.error;
+      } catch {
+        // fall back to error.message
+      }
+    }
+    throw new Error(msg);
+  }
+  return (data as { duplicate: boolean }).duplicate;
+}
+
 export async function createRecord(input: {
   studentName: string;
   studentNumber: string;
@@ -98,28 +129,48 @@ export async function createRecord(input: {
   status: RecordStatus;
   file: File;
 }): Promise<StudentRecord> {
-  const formData = new FormData();
-  formData.append("file", input.file, input.file.name);
-
-  const { data: uploadData, error: uploadError } = await supabase.functions.invoke(
-    "cloudinary-upload",
-    { body: formData },
-  );
-  if (uploadError) {
-    let msg = uploadError.message ?? "Upload failed";
-    const response = (uploadError as { context?: Response }).context;
-    if (response && typeof response.json === "function") {
-      try {
-        const body = await response.json();
-        if (body?.error) msg = body.error;
-      } catch {
-        // fall back to uploadError.message
-      }
-    }
-    throw new Error(msg);
+  const duplicate = await checkDuplicateFile(input.studentName, input.studentNumber, input.file.name);
+  if (duplicate) {
+    throw new Error(`Duplicate file: "${input.file.name}" already exists for this student.`);
   }
-  const publicId = (uploadData as { publicId: string }).publicId;
+
   const ext = input.file.name.includes(".") ? input.file.name.split(".").pop()! : "pdf";
+  const useCloudinary = input.file.size <= CLOUDINARY_RAW_LIMIT;
+
+  let cloudinaryPublicId: string | null = null;
+  let storagePath: string | null = null;
+
+  if (useCloudinary) {
+    const formData = new FormData();
+    formData.append("file", input.file, input.file.name);
+
+    const { data: uploadData, error: uploadError } = await supabase.functions.invoke(
+      "cloudinary-upload",
+      { body: formData },
+    );
+    if (uploadError) {
+      let msg = uploadError.message ?? "Upload failed";
+      const response = (uploadError as { context?: Response }).context;
+      if (response && typeof response.json === "function") {
+        try {
+          const body = await response.json();
+          if (body?.error) msg = body.error;
+        } catch {
+          // fall back to uploadError.message
+        }
+      }
+      throw new Error(msg);
+    }
+    cloudinaryPublicId = (uploadData as { publicId: string }).publicId;
+  } else {
+    // Larger files go straight to Supabase Storage — Cloudinary's Free plan
+    // rejects raw files over 10 MB, but the Storage bucket allows up to 50 MB.
+    storagePath = `${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(RECORDS_BUCKET)
+      .upload(storagePath, input.file, { contentType: input.file.type || "application/pdf" });
+    if (uploadError) throw uploadError;
+  }
 
   const { data, error } = await supabase
     .from("records")
@@ -129,7 +180,8 @@ export async function createRecord(input: {
       batch: input.batch,
       student_category: input.category,
       status: input.status,
-      cloudinary_public_id: publicId,
+      cloudinary_public_id: cloudinaryPublicId,
+      storage_path: storagePath,
       file_name: input.file.name,
       file_type: ext.toLowerCase(),
       file_size: input.file.size,
@@ -137,7 +189,12 @@ export async function createRecord(input: {
     .select(SAFE_COLUMNS)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (storagePath) {
+      await supabase.storage.from(RECORDS_BUCKET).remove([storagePath]);
+    }
+    throw error;
+  }
 
   const record = mapRecord(data as RecordRow);
   await logAudit({
@@ -147,6 +204,7 @@ export async function createRecord(input: {
     details: {
       file_name: input.file.name,
       folder: `${record.batch}/${record.category}/${record.status}`,
+      storage: useCloudinary ? "cloudinary" : "supabase-storage",
     },
   });
   return record;
