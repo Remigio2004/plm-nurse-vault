@@ -35,7 +35,12 @@ export function useCreateRecord() {
       void qc.invalidateQueries({ queryKey: ["records"] });
       void qc.invalidateQueries({ queryKey: ["audit_logs"] });
     },
-    onError: (error) => toast.error("Upload failed", { description: message(error) }),
+    onError: (error) => {
+      // Duplicate-file errors get their own aggregate toast in upload.tsx —
+      // skip the generic toast here so the user isn't shown two messages.
+      if (error instanceof Error && error.message.startsWith("Duplicate file:")) return;
+      toast.error("Upload failed", { description: message(error) });
+    },
   });
 }
 
