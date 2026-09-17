@@ -162,7 +162,7 @@ function UploadPage() {
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="studentName">Student Name</Label>
+              <Label htmlFor="studentName">Student Name (SN, FN, MI)</Label>
               <Input
                 id="studentName"
                 value={studentName}
