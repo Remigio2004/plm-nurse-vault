@@ -210,7 +210,6 @@ function UploadPage() {
                 <SelectContent className="rounded-xl">
                   <SelectItem value="CN Graduate">CN Graduate</SelectItem>
                   <SelectItem value="CN Honorable Dismissal">CN Honorable Dismissal</SelectItem>
-                  <SelectItem value="CN Transferee">CN Transferee</SelectItem>
                   <SelectItem value="CN Others">CN Others</SelectItem>
                 </SelectContent>
               </Select>
