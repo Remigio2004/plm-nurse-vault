@@ -222,7 +222,7 @@ function BrowsePage() {
 
   const startEdit = async (group: RecordGroup) => {
     if (group.records.length === 1) {
-      const info = await unlockFileInfo(group.records[0]);
+      const info = await unlockFileInfo(group.records[0]!);
       setEditFileNameOriginal(info.fileName);
       setEditFileName(info.fileName);
     } else {
@@ -251,7 +251,7 @@ function BrowsePage() {
 
   const requestDeleteGroup = (group: RecordGroup) => {
     if (group.records.length === 1) {
-      requestDelete(group.records[0]);
+      requestDelete(group.records[0]!);
       return;
     }
     setDeleteGroup(group);
@@ -430,7 +430,7 @@ function BrowsePage() {
 
   const openPreview = (group: RecordGroup) => {
     setPreviewGroup(group);
-    setPreviewRecord(group.records.length === 1 ? group.records[0] : null);
+    setPreviewRecord(group.records.length === 1 ? (group.records[0] ?? null) : null);
     setPreviewLoading(false);
   };
 
