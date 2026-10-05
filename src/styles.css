@@ -135,3 +135,49 @@
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-soft);
 }
+
+/* Device-verify loader animations */
+@keyframes nv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes nv-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes nv-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@utility nv-spin-slow {
+  animation: nv-spin 5s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility nv-spin-medium {
+  animation: nv-spin 3s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility nv-spin-reverse {
+  animation: nv-spin-reverse 2.2s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility nv-pulse {
+  animation: nv-pulse 2.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
