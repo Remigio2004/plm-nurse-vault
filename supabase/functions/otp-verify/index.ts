@@ -42,23 +42,49 @@ Deno.serve(async (req) => {
     const { code } = (await req.json()) as { code?: string };
     if (!code || !/^\d{6}$/.test(code)) return json({ error: "Enter the 6-digit code." }, 400, h);
 
-    const { data: row } = await admin.from("otp_codes").select("*")
+    const { data: current } = await admin.from("otp_codes").select("*")
       .eq("session_id", sessionId).is("used_at", null)
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
-    if (!row || new Date(row.expires_at).getTime() < Date.now()) {
+    if (!current || new Date(current.expires_at).getTime() < Date.now()) {
       return json({ error: "Code expired. Request a new one." }, 400, h);
     }
-    if (row.attempts >= MAX_ATTEMPTS) {
+
+    const hash = await sha256(`${Deno.env.get("OTP_PEPPER")}:${sessionId}:${code}`);
+
+    // Atomically claim one guess with optimistic locking: the update only
+    // succeeds if attempts hasn't changed since we read it, so concurrent
+    // requests can never squeeze in more guesses than MAX_ATTEMPTS total.
+    let row = current;
+    let claimed = false;
+    for (let i = 0; i < 3 && !claimed; i++) {
+      if (row.attempts >= MAX_ATTEMPTS) {
+        return json({ error: "Too many wrong attempts. Request a new code." }, 429, h);
+      }
+      const { data: claimedRow } = await admin
+        .from("otp_codes")
+        .update({ attempts: row.attempts + 1 })
+        .eq("id", row.id)
+        .eq("attempts", row.attempts)
+        .select("attempts")
+        .maybeSingle();
+      if (claimedRow) {
+        row = { ...row, attempts: (claimedRow as { attempts: number }).attempts };
+        claimed = true;
+        break;
+      }
+      // Someone else claimed first — re-read and retry with the new value.
+      const { data: refreshed } = await admin.from("otp_codes").select("*")
+        .eq("id", row.id).maybeSingle();
+      if (!refreshed) break;
+      row = refreshed;
+    }
+    if (!claimed) {
       return json({ error: "Too many wrong attempts. Request a new code." }, 429, h);
     }
 
-    // bilangin muna ang attempt bago i-compare
-    await admin.from("otp_codes").update({ attempts: row.attempts + 1 }).eq("id", row.id);
-
-    const hash = await sha256(`${Deno.env.get("OTP_PEPPER")}:${sessionId}:${code}`);
     if (hash !== row.code_hash) {
-      return json({ error: "Incorrect code.", attemptsRemaining: MAX_ATTEMPTS - row.attempts - 1 }, 400, h);
+      return json({ error: "Incorrect code.", attemptsRemaining: MAX_ATTEMPTS - row.attempts }, 400, h);
     }
 
     await admin.from("otp_codes").update({ used_at: new Date().toISOString() }).eq("id", row.id);
