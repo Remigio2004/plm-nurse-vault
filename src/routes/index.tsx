@@ -7,7 +7,9 @@ import seal from "@/assets/Nursing logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OtpVerifyScreen } from "@/components/OtpVerifyScreen";
 import { supabase } from "@/integrations/supabase/client";
+import { checkVerified } from "@/lib/otp";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,16 +36,34 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState<"login" | "otp">("login");
 
   useEffect(() => {
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) navigate({ to: "/dashboard", replace: true });
+      if (!active || !data.session) return;
+      void checkVerified().then((ok) => {
+        if (!active) return;
+        if (ok) navigate({ to: "/dashboard", replace: true });
+        else setStep("otp");
+      });
     });
     return () => {
       active = false;
     };
   }, [navigate]);
+
+  if (step === "otp") {
+    return (
+      <OtpVerifyScreen
+        onVerified={() => navigate({ to: "/dashboard", replace: true })}
+        onCancel={async () => {
+          await supabase.auth.signOut();
+          setStep("login");
+        }}
+      />
+    );
+  }
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +96,7 @@ function LoginPage() {
       toast.error("Sign in failed", { description: sessionError.message });
       return;
     }
-    navigate({ to: "/dashboard", replace: true });
+    setStep("otp");
   };
 
   return (
