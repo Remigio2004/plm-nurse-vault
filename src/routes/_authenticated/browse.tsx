@@ -65,12 +65,12 @@ export const Route = createFileRoute("/_authenticated/browse")({
       {
         name: "description",
         content:
-          "Navigate nursing student records by batch, student category and status, or search the full records table.",
+          "Navigate nursing student records by batch, student classification and status, or search the full records table.",
       },
       { property: "og:title", content: "Browse Folders — NurseVault" },
       {
         property: "og:description",
-        content: "Navigate records by batch, category and status, or search the full records table.",
+        content: "Navigate records by batch, classification and status, or search the full records table.",
       },
     ],
   }),
@@ -456,7 +456,7 @@ function BrowsePage() {
 
   if (isLoading || isError) {
     return (
-      <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
+      <AppShell title="Browse Folders" description="Batch → Student Classification → Status → records.">
         {isError ? (
           <p className="vault-card p-10 text-center text-sm text-destructive">
             Could not load records. Please refresh and try again.
@@ -474,7 +474,7 @@ function BrowsePage() {
 
   return (
     <TooltipProvider delayDuration={200}>
-    <AppShell title="Browse Folders" description="Batch → Student Category → Status → records.">
+    <AppShell title="Browse Folders" description="Batch → Student Classification → Status → records.">
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as "folders" | "table")}
@@ -867,7 +867,7 @@ function BrowsePage() {
                         ["studentName", "Student Name"],
                         ["studentNumber", "Student Number"],
                         ["batch", "Batch"],
-                        ["category", "Category"],
+                        ["category", "Classification"],
                         ["status", "Status"],
                         ["uploadDate", "Upload Date"],
                       ] as [SortKey, string][]
@@ -1118,10 +1118,10 @@ function BrowsePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Student Category</Label>
+              <Label>Student Classification</Label>
               <Select value={editCategory} onValueChange={(v) => setEditCategory(v as StudentCategory)}>
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select classification" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="CN Graduate">CN Graduate</SelectItem>

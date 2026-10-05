@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/upload")({
       {
         name: "description",
         content:
-          "File a scanned nursing student document into its batch, student category and status folder in NurseVault.",
+          "File a scanned nursing student document into its batch, student classification and status folder in NurseVault.",
       },
       { property: "og:title", content: "Upload Record — NurseVault" },
       {
@@ -157,7 +157,7 @@ function UploadPage() {
         <div className="vault-card p-6">
           <h2 className="text-base font-semibold text-foreground">Student details</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Folders are generated automatically from batch, category and status.
+            Folders are generated automatically from batch, classification and status.
           </p>
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -202,10 +202,10 @@ function UploadPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Student Category</Label>
+              <Label>Student Classification</Label>
               <Select value={category} onValueChange={(v) => setCategory(v as StudentCategory)}>
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select classification" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="CN Graduate">CN Graduate</SelectItem>
@@ -309,7 +309,7 @@ function UploadPage() {
               Destination folder
             </p>
             <p className="mt-2 text-sm font-medium text-primary">
-              {batch.trim() || "Batch —"} / {category || "Category —"} / {status || "Status —"}
+              {batch.trim() || "Batch —"} / {category || "Classification —"} / {status || "Status —"}
             </p>
             <Button
               type="submit"
