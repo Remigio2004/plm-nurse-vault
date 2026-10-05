@@ -34,6 +34,15 @@ async function sha1Hex(input: string): Promise<string> {
     .join("");
 }
 
+const sessionIdFromJwt = (t: string): string | null => {
+  try {
+    const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(p)).session_id ?? null;
+  } catch {
+    return null;
+  }
+};
+
 Deno.serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
 
@@ -58,6 +67,7 @@ Deno.serve(async (req) => {
       });
     }
     const user = userData.user;
+    const sessionId = sessionIdFromJwt(authHeader.replace(/^Bearer /i, ""));
 
     if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
@@ -69,6 +79,26 @@ Deno.serve(async (req) => {
     // Service-role client — bypasses RLS/column grants. This is the ONLY
     // place in the whole app allowed to see storage_path/file_name/etc.
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // Enforce the OTP second step server-side: the caller's session must be
+    // present in verified_sessions, unrevoked, and unexpired. The React
+    // route guard alone is not a security boundary.
+    const { data: verified } = sessionId
+      ? await admin
+          .from("verified_sessions")
+          .select("id")
+          .eq("session_id", sessionId)
+          .eq("user_id", user.id)
+          .eq("revoked", false)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+      : { data: null };
+    if (!verified) {
+      return new Response(JSON.stringify({ error: "Session not verified" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const body = await req.json();
     const { recordId, action, newFileName } = body as {
@@ -92,7 +122,8 @@ Deno.serve(async (req) => {
         .eq("id", recordId)
         .maybeSingle();
       if (fetchError) {
-        return new Response(JSON.stringify({ error: fetchError.message }), {
+        console.error("restore/purge fetch failed:", fetchError.message);
+        return new Response(JSON.stringify({ error: "Could not load record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -117,7 +148,8 @@ Deno.serve(async (req) => {
           .update({ deleted_at: null })
           .eq("id", recordId);
         if (updateError) {
-          return new Response(JSON.stringify({ error: updateError.message }), {
+          console.error("restore failed:", updateError.message);
+          return new Response(JSON.stringify({ error: "Could not restore record" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -167,7 +199,8 @@ Deno.serve(async (req) => {
           .from("student-records")
           .remove([row.storage_path]);
         if (removeError) {
-          return new Response(JSON.stringify({ error: removeError.message }), {
+          console.error("storage remove failed:", removeError.message);
+          return new Response(JSON.stringify({ error: "Could not remove file" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -175,7 +208,8 @@ Deno.serve(async (req) => {
       }
       const { error: deleteError } = await admin.from("records").delete().eq("id", recordId);
       if (deleteError) {
-        return new Response(JSON.stringify({ error: deleteError.message }), {
+        console.error("purge delete failed:", deleteError.message);
+        return new Response(JSON.stringify({ error: "Could not delete record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -197,12 +231,13 @@ Deno.serve(async (req) => {
     // anymore; the admin session itself is the only gate.
     const { data: fileInfo, error: fetchError } = await admin
       .from("records")
-      .select("id, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at")
+      .select("id, student_name, student_number, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at")
       .eq("id", recordId)
       .is("deleted_at", null)
       .maybeSingle();
     if (fetchError) {
-      return new Response(JSON.stringify({ error: fetchError.message }), {
+      console.error("record fetch failed:", fetchError.message);
+      return new Response(JSON.stringify({ error: "Could not load record" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -215,8 +250,17 @@ Deno.serve(async (req) => {
     }
 
     const summaryDetails = { file_name: fileInfo.file_name };
+    const summary = `${fileInfo.student_name} (${fileInfo.student_number})`;
 
     if (action === "unlock") {
+      await admin.from("audit_logs").insert({
+        action: "unlock",
+        record_id: recordId,
+        record_summary: summary,
+        performed_by: user.id,
+        performed_by_email: user.email ?? null,
+        details: summaryDetails,
+      });
       return new Response(
         JSON.stringify({
           fileName: fileInfo.file_name,
@@ -235,19 +279,24 @@ Deno.serve(async (req) => {
         const API_KEY = Deno.env.get("CLOUDINARY_API_KEY")!;
         const API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET")!;
         const timestamp = Math.floor(Date.now() / 1000).toString();
-        const toSign = `public_id=${fileInfo.cloudinary_public_id}&timestamp=${timestamp}&type=authenticated`;
+        // Short-lived download link: without expires_at the signed URL stays
+        // valid for ~1 hour; 5 minutes is plenty for the redirect.
+        const expiresAt = (Math.floor(Date.now() / 1000) + 300).toString();
+        const toSign = `expires_at=${expiresAt}&public_id=${fileInfo.cloudinary_public_id}&timestamp=${timestamp}&type=authenticated`;
         const signature = await sha1Hex(toSign + API_SECRET);
         url =
           `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/download?` +
           `public_id=${encodeURIComponent(fileInfo.cloudinary_public_id)}` +
-          `&timestamp=${timestamp}&type=authenticated&api_key=${API_KEY}&signature=${signature}`;
+          `&expires_at=${expiresAt}&timestamp=${timestamp}&type=authenticated` +
+          `&api_key=${API_KEY}&signature=${signature}`;
       } else {
         // Legacy fallback for records not yet migrated to Cloudinary.
         const { data: signed, error: signError } = await admin.storage
           .from("student-records")
           .createSignedUrl(fileInfo.storage_path, 60);
         if (signError) {
-          return new Response(JSON.stringify({ error: signError.message }), {
+          console.error("signed url failed:", signError.message);
+          return new Response(JSON.stringify({ error: "Could not open file" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -258,7 +307,7 @@ Deno.serve(async (req) => {
       await admin.from("audit_logs").insert({
         action: "view",
         record_id: recordId,
-        record_summary: recordId,
+        record_summary: summary,
         performed_by: user.id,
         performed_by_email: user.email ?? null,
         details: summaryDetails,
@@ -280,7 +329,8 @@ Deno.serve(async (req) => {
         .update({ file_name: newFileName.trim() })
         .eq("id", recordId);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
+        console.error("rename failed:", updateError.message);
+        return new Response(JSON.stringify({ error: "Could not rename file" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -288,7 +338,7 @@ Deno.serve(async (req) => {
       await admin.from("audit_logs").insert({
         action: "edit",
         record_id: recordId,
-        record_summary: recordId,
+        record_summary: summary,
         performed_by: user.id,
         performed_by_email: user.email ?? null,
         details: { file_name: { from: fileInfo.file_name, to: newFileName.trim() } },
@@ -306,11 +356,20 @@ Deno.serve(async (req) => {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", recordId);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
+        console.error("soft delete failed:", updateError.message);
+        return new Response(JSON.stringify({ error: "Could not delete record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      await admin.from("audit_logs").insert({
+        action: "delete",
+        record_id: recordId,
+        record_summary: summary,
+        performed_by: user.id,
+        performed_by_email: user.email ?? null,
+        details: summaryDetails,
+      });
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -321,7 +380,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+    console.error("file-access unhandled error:", err);
+    return new Response(JSON.stringify({ error: "Unexpected error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

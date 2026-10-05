@@ -26,6 +26,15 @@ const ALLOWED_ADMIN_IDS = [
   "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
 ];
 
+const sessionIdFromJwt = (t: string): string | null => {
+  try {
+    const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(p)).session_id ?? null;
+  } catch {
+    return null;
+  }
+};
+
 Deno.serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
 
@@ -50,9 +59,29 @@ Deno.serve(async (req) => {
       });
     }
     const user = userData.user;
+    const sessionId = sessionIdFromJwt(authHeader.replace(/^Bearer /i, ""));
 
     if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Enforce the OTP second step server-side, same as file-access.
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: verified } = sessionId
+      ? await admin
+          .from("verified_sessions")
+          .select("id")
+          .eq("session_id", sessionId)
+          .eq("user_id", user.id)
+          .eq("revoked", false)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+      : { data: null };
+    if (!verified) {
+      return new Response(JSON.stringify({ error: "Session not verified" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -72,9 +101,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Service-role client — bypasses RLS/column grants so we can check
-    // file_name without ever exposing it to the browser.
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    // admin (service-role) client above bypasses RLS/column grants so we
+    // can check file_name without ever exposing it to the browser.
 
     const { data, error } = await admin
       .from("records")
@@ -86,7 +114,8 @@ Deno.serve(async (req) => {
       .limit(1);
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error("duplicate check failed:", error.message);
+      return new Response(JSON.stringify({ error: "Could not check duplicates" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -95,9 +124,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ duplicate: (data?.length ?? 0) > 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch {
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
+      JSON.stringify({ error: "Unexpected error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
