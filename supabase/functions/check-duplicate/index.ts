@@ -1,0 +1,104 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
+// Requests are only allowed from the production site, Vercel preview
+// deployments for this project, and local dev. Any other origin gets no
+// CORS header, so the browser blocks the response.
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/plm-nurse-vault\.vercel\.app$/,
+  /^https:\/\/plm-nurse-vault-[a-z0-9-]+\.vercel\.app$/,
+  /^http:\/\/localhost:\d+$/,
+];
+
+function buildCorsHeaders(origin: string | null) {
+  const allowedOrigin =
+    origin && ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin)) ? origin : "";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
+
+// Only these Supabase Auth user IDs may call this function.
+// Keep this in sync with the RLS policies on records/audit_logs.
+const ALLOWED_ADMIN_IDS = [
+  "68a6a069-5220-481c-b36a-3cc478169a36",
+  "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
+];
+
+Deno.serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
+
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userError } = await callerClient.auth.getUser();
+    if (userError || !userData.user) {
+      return new Response(JSON.stringify({ error: "Not signed in" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const user = userData.user;
+
+    if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const { studentName, studentNumber, fileName } = body as {
+      studentName?: string;
+      studentNumber?: string;
+      fileName?: string;
+    };
+
+    if (!studentName || !studentNumber || !fileName) {
+      return new Response(
+        JSON.stringify({ error: "Missing studentName, studentNumber or fileName" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Service-role client — bypasses RLS/column grants so we can check
+    // file_name without ever exposing it to the browser.
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    const { data, error } = await admin
+      .from("records")
+      .select("id")
+      .eq("student_name", studentName)
+      .eq("student_number", studentNumber)
+      .eq("file_name", fileName)
+      .is("deleted_at", null)
+      .limit(1);
+
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ duplicate: (data?.length ?? 0) > 0 }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+});
