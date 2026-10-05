@@ -279,12 +279,16 @@ Deno.serve(async (req) => {
         const API_KEY = Deno.env.get("CLOUDINARY_API_KEY")!;
         const API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET")!;
         const timestamp = Math.floor(Date.now() / 1000).toString();
-        const toSign = `public_id=${fileInfo.cloudinary_public_id}&timestamp=${timestamp}&type=authenticated`;
+        // Short-lived download link: without expires_at the signed URL stays
+        // valid for ~1 hour; 5 minutes is plenty for the redirect.
+        const expiresAt = (Math.floor(Date.now() / 1000) + 300).toString();
+        const toSign = `expires_at=${expiresAt}&public_id=${fileInfo.cloudinary_public_id}&timestamp=${timestamp}&type=authenticated`;
         const signature = await sha1Hex(toSign + API_SECRET);
         url =
           `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/download?` +
           `public_id=${encodeURIComponent(fileInfo.cloudinary_public_id)}` +
-          `&timestamp=${timestamp}&type=authenticated&api_key=${API_KEY}&signature=${signature}`;
+          `&expires_at=${expiresAt}&timestamp=${timestamp}&type=authenticated` +
+          `&api_key=${API_KEY}&signature=${signature}`;
       } else {
         // Legacy fallback for records not yet migrated to Cloudinary.
         const { data: signed, error: signError } = await admin.storage
