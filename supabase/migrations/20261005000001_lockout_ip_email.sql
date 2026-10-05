@@ -23,10 +23,10 @@ begin
     where conrelid = 'public.login_lockouts'::regclass
       and contype in ('u', 'p')
       and (
-        select array_agg(a.attname order by a.attnum)
+        select array_agg(a.attname::text order by a.attnum)
         from unnest(conkey) k
         join pg_attribute a on a.attrelid = conrelid and a.attnum = k
-      ) = array['ip_address']
+      ) = array['ip_address'::text]
   loop
     execute format('alter table public.login_lockouts drop constraint %I', c.conname);
   end loop;
