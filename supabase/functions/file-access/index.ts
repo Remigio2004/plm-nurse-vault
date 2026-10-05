@@ -34,6 +34,15 @@ async function sha1Hex(input: string): Promise<string> {
     .join("");
 }
 
+const sessionIdFromJwt = (t: string): string | null => {
+  try {
+    const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(p)).session_id ?? null;
+  } catch {
+    return null;
+  }
+};
+
 Deno.serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
 
@@ -58,6 +67,7 @@ Deno.serve(async (req) => {
       });
     }
     const user = userData.user;
+    const sessionId = sessionIdFromJwt(authHeader.replace(/^Bearer /i, ""));
 
     if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
@@ -69,6 +79,26 @@ Deno.serve(async (req) => {
     // Service-role client — bypasses RLS/column grants. This is the ONLY
     // place in the whole app allowed to see storage_path/file_name/etc.
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // Enforce the OTP second step server-side: the caller's session must be
+    // present in verified_sessions, unrevoked, and unexpired. The React
+    // route guard alone is not a security boundary.
+    const { data: verified } = sessionId
+      ? await admin
+          .from("verified_sessions")
+          .select("id")
+          .eq("session_id", sessionId)
+          .eq("user_id", user.id)
+          .eq("revoked", false)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+      : { data: null };
+    if (!verified) {
+      return new Response(JSON.stringify({ error: "Session not verified" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const body = await req.json();
     const { recordId, action, newFileName } = body as {
