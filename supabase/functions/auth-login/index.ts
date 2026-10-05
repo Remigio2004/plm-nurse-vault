@@ -19,6 +19,22 @@ function buildCorsHeaders(origin: string | null) {
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
+  if (!secret) return false;
+  const body = new URLSearchParams({ secret, response: token, remoteip: ip });
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body,
+    });
+    const json = await res.json().catch(() => null);
+    return json?.success === true;
+  } catch {
+    return false;
+  }
+}
+
 function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
@@ -37,7 +53,11 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const { email, password } = (await req.json()) as { email?: string; password?: string };
+    const { email, password, turnstileToken } = (await req.json()) as {
+      email?: string;
+      password?: string;
+      turnstileToken?: string;
+    };
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Email and password are required" }), {
         status: 400,
@@ -46,6 +66,15 @@ Deno.serve(async (req) => {
     }
 
     const ip = getClientIp(req);
+
+    // Human verification first — a captcha failure is not a password guess,
+    // so it must NOT consume a lockout attempt.
+    if (!turnstileToken || !(await verifyTurnstile(turnstileToken, ip))) {
+      return new Response(JSON.stringify({ error: "Human verification failed. Please try again." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const emailKey = email.trim().toLowerCase();
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const now = new Date();
@@ -87,7 +116,7 @@ Deno.serve(async (req) => {
 
     const anonClient = createClient(SUPABASE_URL, ANON_KEY);
     const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
-      email,
+      email: emailKey,
       password,
     });
 
