@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
     // anymore; the admin session itself is the only gate.
     const { data: fileInfo, error: fetchError } = await admin
       .from("records")
-      .select("id, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at")
+      .select("id, student_name, student_number, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at")
       .eq("id", recordId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -245,8 +245,17 @@ Deno.serve(async (req) => {
     }
 
     const summaryDetails = { file_name: fileInfo.file_name };
+    const summary = `${fileInfo.student_name} (${fileInfo.student_number})`;
 
     if (action === "unlock") {
+      await admin.from("audit_logs").insert({
+        action: "unlock",
+        record_id: recordId,
+        record_summary: summary,
+        performed_by: user.id,
+        performed_by_email: user.email ?? null,
+        details: summaryDetails,
+      });
       return new Response(
         JSON.stringify({
           fileName: fileInfo.file_name,
@@ -288,7 +297,7 @@ Deno.serve(async (req) => {
       await admin.from("audit_logs").insert({
         action: "view",
         record_id: recordId,
-        record_summary: recordId,
+        record_summary: summary,
         performed_by: user.id,
         performed_by_email: user.email ?? null,
         details: summaryDetails,
@@ -318,7 +327,7 @@ Deno.serve(async (req) => {
       await admin.from("audit_logs").insert({
         action: "edit",
         record_id: recordId,
-        record_summary: recordId,
+        record_summary: summary,
         performed_by: user.id,
         performed_by_email: user.email ?? null,
         details: { file_name: { from: fileInfo.file_name, to: newFileName.trim() } },
@@ -341,6 +350,14 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      await admin.from("audit_logs").insert({
+        action: "delete",
+        record_id: recordId,
+        record_summary: summary,
+        performed_by: user.id,
+        performed_by_email: user.email ?? null,
+        details: summaryDetails,
+      });
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
