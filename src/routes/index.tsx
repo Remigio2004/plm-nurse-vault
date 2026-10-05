@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OtpVerifyScreen } from "@/components/OtpVerifyScreen";
-import { Turnstile, resetTurnstile } from "@/components/Turnstile";
 import { supabase } from "@/integrations/supabase/client";
 import { checkVerified } from "@/lib/otp";
 
@@ -38,7 +37,6 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<"login" | "otp">("login");
-  const [captchaToken, setCaptchaToken] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -70,18 +68,12 @@ function LoginPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    if (!captchaToken) {
-      toast.error("Please complete the human verification first");
-      return;
-    }
     setLoading(true);
 
     const { data, error } = await supabase.functions.invoke("auth-login", {
-      body: { email, password, turnstileToken: captchaToken },
+      body: { email, password },
     });
     setLoading(false);
-    resetTurnstile();
-    setCaptchaToken("");
 
     if (error) {
       let message = "Invalid email or password";
@@ -189,8 +181,6 @@ function LoginPage() {
                 </button>
               </div>
             </div>
-
-            <Turnstile onToken={setCaptchaToken} onReset={() => setCaptchaToken("")} />
 
             <Button
               type="submit"
