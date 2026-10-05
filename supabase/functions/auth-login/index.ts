@@ -46,13 +46,18 @@ Deno.serve(async (req) => {
     }
 
     const ip = getClientIp(req);
+    const emailKey = email.trim().toLowerCase();
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const now = new Date();
 
+    // Counters are per (IP, email): a shared campus IP no longer locks out
+    // everyone, and header spoofing no longer dodges a counter because the
+    // email half still tracks the attack.
     const { data: existing } = await admin
       .from("login_lockouts")
       .select("failed_attempts, locked_until")
       .eq("ip_address", ip)
+      .eq("email", emailKey)
       .maybeSingle();
 
     let failedAttempts = existing?.failed_attempts ?? 0;
@@ -62,12 +67,10 @@ Deno.serve(async (req) => {
     // without even attempting the real sign-in.
     if (lockedUntil && lockedUntil > now) {
       const extendedUntil = new Date(now.getTime() + LOCKOUT_MS);
-      await admin.from("login_lockouts").upsert({
-        ip_address: ip,
-        failed_attempts: failedAttempts,
-        locked_until: extendedUntil.toISOString(),
-        updated_at: now.toISOString(),
-      });
+      await admin.from("login_lockouts").upsert(
+        { ip_address: ip, email: emailKey, failed_attempts: failedAttempts, locked_until: extendedUntil.toISOString(), updated_at: now.toISOString() },
+        { onConflict: "ip_address,email" },
+      );
       return new Response(
         JSON.stringify({
           error: "Too many failed sign-in attempts. Please try again in 15 minutes.",
@@ -89,12 +92,10 @@ Deno.serve(async (req) => {
     });
 
     if (!signInError && signInData.session) {
-      await admin.from("login_lockouts").upsert({
-        ip_address: ip,
-        failed_attempts: 0,
-        locked_until: null,
-        updated_at: now.toISOString(),
-      });
+      await admin.from("login_lockouts").upsert(
+        { ip_address: ip, email: emailKey, failed_attempts: 0, locked_until: null, updated_at: now.toISOString() },
+        { onConflict: "ip_address,email" },
+      );
       return new Response(
         JSON.stringify({
           access_token: signInData.session.access_token,
@@ -108,12 +109,10 @@ Deno.serve(async (req) => {
     failedAttempts += 1;
     const newLockedUntil = failedAttempts >= MAX_ATTEMPTS ? new Date(now.getTime() + LOCKOUT_MS) : null;
 
-    await admin.from("login_lockouts").upsert({
-      ip_address: ip,
-      failed_attempts: failedAttempts,
-      locked_until: newLockedUntil ? newLockedUntil.toISOString() : null,
-      updated_at: now.toISOString(),
-    });
+    await admin.from("login_lockouts").upsert(
+      { ip_address: ip, email: emailKey, failed_attempts: failedAttempts, locked_until: newLockedUntil ? newLockedUntil.toISOString() : null, updated_at: now.toISOString() },
+      { onConflict: "ip_address,email" },
+    );
 
     if (newLockedUntil) {
       return new Response(
