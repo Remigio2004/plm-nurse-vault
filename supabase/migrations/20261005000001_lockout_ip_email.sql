@@ -4,7 +4,13 @@
 
 alter table public.login_lockouts add column if not exists email text;
 update public.login_lockouts set email = '' where email is null;
-alter table public.login_lockouts alter column email set default '';
+
+-- Resolve duplicate IPs left over from the per-IP era before the composite
+-- unique index goes on: keep only the most recently updated row per IP.
+delete from public.login_lockouts a
+using public.login_lockouts b
+where a.ip_address = b.ip_address
+  and a.ctid < b.ctid;
 
 -- Drop any single-column unique/PK constraint on ip_address so multiple
 -- emails can share one IP.
