@@ -122,7 +122,8 @@ Deno.serve(async (req) => {
         .eq("id", recordId)
         .maybeSingle();
       if (fetchError) {
-        return new Response(JSON.stringify({ error: fetchError.message }), {
+        console.error("restore/purge fetch failed:", fetchError.message);
+        return new Response(JSON.stringify({ error: "Could not load record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -147,7 +148,8 @@ Deno.serve(async (req) => {
           .update({ deleted_at: null })
           .eq("id", recordId);
         if (updateError) {
-          return new Response(JSON.stringify({ error: updateError.message }), {
+          console.error("restore failed:", updateError.message);
+          return new Response(JSON.stringify({ error: "Could not restore record" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -197,7 +199,8 @@ Deno.serve(async (req) => {
           .from("student-records")
           .remove([row.storage_path]);
         if (removeError) {
-          return new Response(JSON.stringify({ error: removeError.message }), {
+          console.error("storage remove failed:", removeError.message);
+          return new Response(JSON.stringify({ error: "Could not remove file" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -205,7 +208,8 @@ Deno.serve(async (req) => {
       }
       const { error: deleteError } = await admin.from("records").delete().eq("id", recordId);
       if (deleteError) {
-        return new Response(JSON.stringify({ error: deleteError.message }), {
+        console.error("purge delete failed:", deleteError.message);
+        return new Response(JSON.stringify({ error: "Could not delete record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -232,7 +236,8 @@ Deno.serve(async (req) => {
       .is("deleted_at", null)
       .maybeSingle();
     if (fetchError) {
-      return new Response(JSON.stringify({ error: fetchError.message }), {
+      console.error("record fetch failed:", fetchError.message);
+      return new Response(JSON.stringify({ error: "Could not load record" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -286,7 +291,8 @@ Deno.serve(async (req) => {
           .from("student-records")
           .createSignedUrl(fileInfo.storage_path, 60);
         if (signError) {
-          return new Response(JSON.stringify({ error: signError.message }), {
+          console.error("signed url failed:", signError.message);
+          return new Response(JSON.stringify({ error: "Could not open file" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -319,7 +325,8 @@ Deno.serve(async (req) => {
         .update({ file_name: newFileName.trim() })
         .eq("id", recordId);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
+        console.error("rename failed:", updateError.message);
+        return new Response(JSON.stringify({ error: "Could not rename file" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -345,7 +352,8 @@ Deno.serve(async (req) => {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", recordId);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
+        console.error("soft delete failed:", updateError.message);
+        return new Response(JSON.stringify({ error: "Could not delete record" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -368,7 +376,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+    console.error("file-access unhandled error:", err);
+    return new Response(JSON.stringify({ error: "Unexpected error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -127,15 +127,17 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        error: signInError?.message ?? "Invalid email or password",
+        // Generic message: never echo Supabase's error (it can reveal
+        // whether an email exists, e.g. "Email not confirmed").
+        error: "Invalid email or password",
         attemptsRemaining: MAX_ATTEMPTS - failedAttempts,
       }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+  } catch {
+    return new Response(JSON.stringify({ error: "Unexpected error" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

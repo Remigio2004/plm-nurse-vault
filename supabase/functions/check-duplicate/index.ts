@@ -114,7 +114,8 @@ Deno.serve(async (req) => {
       .limit(1);
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error("duplicate check failed:", error.message);
+      return new Response(JSON.stringify({ error: "Could not check duplicates" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -123,9 +124,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ duplicate: (data?.length ?? 0) > 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch {
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
+      JSON.stringify({ error: "Unexpected error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
