@@ -27,6 +27,7 @@ const sha256 = async (s: string) =>
 
 const MAX_ATTEMPTS = 5;
 const TRUST_MS = 7 * 24 * 3600_000;
+const MAX_TRUSTED_DEVICES = 10;
 
 Deno.serve(async (req) => {
   const h = cors(req.headers.get("origin"));
@@ -99,14 +100,34 @@ Deno.serve(async (req) => {
     });
     if (upErr) return json({ error: "Could not save verification" }, 500, h);
 
+    // Housekeeping: drop this user's expired devices and revoke the oldest
+    // ones beyond the cap so the table cannot grow without bound.
+    await admin.from("trusted_devices").delete()
+      .eq("user_id", u.user.id).lt("expires_at", new Date().toISOString());
+
+    const { data: active } = await admin.from("trusted_devices").select("id")
+      .eq("user_id", u.user.id).eq("revoked", false)
+      .order("expires_at", { ascending: false });
+    const stale = (active ?? []).slice(MAX_TRUSTED_DEVICES - 1).map((d) => d.id);
+    if (stale.length > 0) {
+      await admin.from("trusted_devices").update({ revoked: true }).in("id", stale);
+    }
+
     const deviceToken = [...crypto.getRandomValues(new Uint8Array(32))]
       .map((b) => b.toString(16).padStart(2, "0")).join("");
-    await admin.from("trusted_devices").insert({
+    const { error: devErr } = await admin.from("trusted_devices").insert({
       user_id: u.user.id,
       token_hash: await sha256(`${Deno.env.get("OTP_PEPPER")}:device:${deviceToken}`),
       device_label: (req.headers.get("user-agent") ?? "").slice(0, 200),
       expires_at: expiresAt,
     });
+    if (devErr) {
+      // The session is already verified — just skip the trusted-device
+      // token instead of failing the login or, worse, handing out a token
+      // that was never persisted.
+      console.error("trusted_devices insert failed:", devErr.message);
+      return json({ verified: true, expiresAt }, 200, h);
+    }
     return json({ verified: true, expiresAt, deviceToken }, 200, h);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, h);
