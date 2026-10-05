@@ -167,7 +167,7 @@ function UploadPage() {
                 id="studentName"
                 value={studentName}
                 onChange={(e) => setStudentName(capitalizeWords(e.target.value))}
-                placeholder="Juan Dela Cruz"
+                placeholder="Dela Cruz, Juan Pandoro"
                 className="h-11 rounded-xl"
               />
             </div>
