@@ -13,7 +13,7 @@ function buildCorsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 

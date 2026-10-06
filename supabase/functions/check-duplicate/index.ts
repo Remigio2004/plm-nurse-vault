@@ -15,7 +15,7 @@ function buildCorsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -70,16 +70,17 @@ Deno.serve(async (req) => {
 
     // Enforce the OTP second step server-side, same as file-access.
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const { data: verified } = sessionId
+    const { data: verified, error: verifiedErr } = sessionId
       ? await admin
           .from("verified_sessions")
-          .select("id")
+          .select("session_id")
           .eq("session_id", sessionId)
           .eq("user_id", user.id)
           .eq("revoked", false)
           .gt("expires_at", new Date().toISOString())
           .maybeSingle()
-      : { data: null };
+      : { data: null, error: null };
+    if (verifiedErr) console.error("verified_sessions lookup failed:", verifiedErr.message);
     if (!verified) {
       return new Response(JSON.stringify({ error: "Session not verified" }), {
         status: 403,
@@ -125,9 +126,9 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch {
-    return new Response(
-      JSON.stringify({ error: "Unexpected error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Unexpected error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

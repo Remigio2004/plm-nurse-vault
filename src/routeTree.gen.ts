@@ -14,7 +14,9 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedBrowseRouteImport } from './routes/_authenticated/browse'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedMasterFileRouteImport } from './routes/_authenticated/master-file'
 import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
+import { Route as AuthenticatedMasterFileStudentIdRouteImport } from './routes/_authenticated/master-file.$studentId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,25 +42,40 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMasterFileRoute = AuthenticatedMasterFileRouteImport.update({
+  id: '/master-file',
+  path: '/master-file',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
   id: '/upload',
   path: '/upload',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMasterFileStudentIdRoute =
+  AuthenticatedMasterFileStudentIdRouteImport.update({
+    id: '/$studentId',
+    path: '/$studentId',
+    getParentRoute: () => AuthenticatedMasterFileRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/browse': typeof AuthenticatedBrowseRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/master-file': typeof AuthenticatedMasterFileRouteWithChildren
   '/upload': typeof AuthenticatedUploadRoute
+  '/master-file/$studentId': typeof AuthenticatedMasterFileStudentIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/browse': typeof AuthenticatedBrowseRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/master-file': typeof AuthenticatedMasterFileRouteWithChildren
   '/upload': typeof AuthenticatedUploadRoute
+  '/master-file/$studentId': typeof AuthenticatedMasterFileStudentIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,13 +84,29 @@ export interface FileRoutesById {
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/browse': typeof AuthenticatedBrowseRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/master-file': typeof AuthenticatedMasterFileRouteWithChildren
   '/_authenticated/upload': typeof AuthenticatedUploadRoute
+  '/_authenticated/master-file/$studentId': typeof AuthenticatedMasterFileStudentIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/activity' | '/browse' | '/dashboard' | '/upload'
+  fullPaths:
+    | '/'
+    | '/activity'
+    | '/browse'
+    | '/dashboard'
+    | '/master-file'
+    | '/upload'
+    | '/master-file/$studentId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/activity' | '/browse' | '/dashboard' | '/upload'
+  to:
+    | '/'
+    | '/activity'
+    | '/browse'
+    | '/dashboard'
+    | '/master-file'
+    | '/upload'
+    | '/master-file/$studentId'
   id:
     | '__root__'
     | '/'
@@ -81,7 +114,9 @@ export interface FileRouteTypes {
     | '/_authenticated/activity'
     | '/_authenticated/browse'
     | '/_authenticated/dashboard'
+    | '/_authenticated/master-file'
     | '/_authenticated/upload'
+    | '/_authenticated/master-file/$studentId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -126,6 +161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/master-file': {
+      id: '/_authenticated/master-file'
+      path: '/master-file'
+      fullPath: '/master-file'
+      preLoaderRoute: typeof AuthenticatedMasterFileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/upload': {
       id: '/_authenticated/upload'
       path: '/upload'
@@ -133,13 +175,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUploadRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/master-file/$studentId': {
+      id: '/_authenticated/master-file/$studentId'
+      path: '/$studentId'
+      fullPath: '/master-file/$studentId'
+      preLoaderRoute: typeof AuthenticatedMasterFileStudentIdRouteImport
+      parentRoute: typeof AuthenticatedMasterFileRoute
+    }
   }
 }
+
+interface AuthenticatedMasterFileRouteChildren {
+  AuthenticatedMasterFileStudentIdRoute: typeof AuthenticatedMasterFileStudentIdRoute
+}
+
+const AuthenticatedMasterFileRouteChildren: AuthenticatedMasterFileRouteChildren =
+  {
+    AuthenticatedMasterFileStudentIdRoute:
+      AuthenticatedMasterFileStudentIdRoute,
+  }
+
+const AuthenticatedMasterFileRouteWithChildren =
+  AuthenticatedMasterFileRoute._addFileChildren(
+    AuthenticatedMasterFileRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedBrowseRoute: typeof AuthenticatedBrowseRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedMasterFileRoute: typeof AuthenticatedMasterFileRouteWithChildren
   AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
 }
 
@@ -147,6 +212,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedBrowseRoute: AuthenticatedBrowseRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedMasterFileRoute: AuthenticatedMasterFileRouteWithChildren,
   AuthenticatedUploadRoute: AuthenticatedUploadRoute,
 }
 

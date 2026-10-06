@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  ClipboardCheck,
   FolderTree,
   History,
   LayoutDashboard,
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/upload", label: "Upload Record", icon: Upload },
   { to: "/browse", label: "Browse Folders", icon: FolderTree },
+  { to: "/master-file", label: "Master File", icon: ClipboardCheck },
   { to: "/activity", label: "Activity Log", icon: History },
 ] as const;
 
@@ -96,7 +98,6 @@ export function AppShell({
       window.clearInterval(interval);
     };
   }, [signOut]);
-
 
   const sidebar = (
     <div className="flex h-full w-72 flex-col border-r border-sidebar-border bg-sidebar">
@@ -165,7 +166,9 @@ export function AppShell({
             className="absolute inset-0 bg-foreground/40"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative h-full animate-in slide-in-from-left duration-200">{sidebar}</div>
+          <div className="relative h-full animate-in slide-in-from-left duration-200">
+            {sidebar}
+          </div>
         </div>
       )}
 

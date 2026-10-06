@@ -15,7 +15,7 @@ function buildCorsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -118,7 +118,9 @@ Deno.serve(async (req) => {
     if (action === "restore" || action === "purge") {
       const { data: row, error: fetchError } = await admin
         .from("records")
-        .select("id, student_name, student_number, storage_path, cloudinary_public_id, file_name, deleted_at")
+        .select(
+          "id, student_name, student_number, storage_path, cloudinary_public_id, file_name, deleted_at",
+        )
         .eq("id", recordId)
         .maybeSingle();
       if (fetchError) {
@@ -231,7 +233,9 @@ Deno.serve(async (req) => {
     // anymore; the admin session itself is the only gate.
     const { data: fileInfo, error: fetchError } = await admin
       .from("records")
-      .select("id, student_name, student_number, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at")
+      .select(
+        "id, student_name, student_number, storage_path, cloudinary_public_id, file_name, file_type, file_size, deleted_at",
+      )
       .eq("id", recordId)
       .is("deleted_at", null)
       .maybeSingle();
