@@ -84,7 +84,7 @@ function DocumentCard({
           <h3 className="text-sm font-semibold text-foreground">{DOCUMENT_LABELS[type]}</h3>
           {optional && (
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Optional — hindi binibilang sa 5 requirements.
+              Optional — not counted toward the 5 requirements.
             </p>
           )}
         </div>

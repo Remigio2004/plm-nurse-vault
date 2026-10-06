@@ -380,9 +380,9 @@ function MasterFilePage() {
       icon: CheckCircle2,
     },
     {
-      label: "May Kulang",
+      label: "Incomplete",
       value: `${kulangCount}`,
-      sub: "Students with missing documents",
+      sub: "Students missing at least one requirement",
       icon: AlertTriangle,
     },
   ];
@@ -530,8 +530,8 @@ function MasterFilePage() {
             <StatusPill status="Submitted" />
             <StatusPill status="Missing" />
             <span className="sm:ml-auto">
-              May file = <span className="font-medium text-foreground">Submitted</span>, walang file ={" "}
-              <span className="font-medium text-foreground">Missing</span>.
+              File present = <span className="font-medium text-foreground">Submitted</span>, no
+              file = <span className="font-medium text-foreground">Missing</span>.
             </span>
           </div>
         </section>
