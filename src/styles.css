@@ -60,8 +60,10 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --shadow-soft: 0 1px 2px oklch(0.393 0.098 145.4 / 0.06), 0 6px 20px -8px oklch(0.393 0.098 145.4 / 0.14);
-  --shadow-lift: 0 2px 4px oklch(0.393 0.098 145.4 / 0.08), 0 18px 40px -16px oklch(0.393 0.098 145.4 / 0.22);
+  --shadow-soft:
+    0 1px 2px oklch(0.393 0.098 145.4 / 0.06), 0 6px 20px -8px oklch(0.393 0.098 145.4 / 0.14);
+  --shadow-lift:
+    0 2px 4px oklch(0.393 0.098 145.4 / 0.08), 0 18px 40px -16px oklch(0.393 0.098 145.4 / 0.22);
 }
 
 :root {

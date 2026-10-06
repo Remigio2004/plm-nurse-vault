@@ -3,8 +3,10 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import {
   createStudent,
   fetchStudentsWithRequirements,
+  findOrCreateStudent,
   removeDocument,
   replaceDocument,
+  updateStudent,
   uploadDocument,
   type NewStudentInput,
 } from "@/lib/students-api";
@@ -32,10 +34,28 @@ export function useCreateStudent() {
   });
 }
 
+export function useFindOrCreateStudent() {
+  const invalidate = useInvalidateStudents();
+  return useMutation({
+    mutationFn: findOrCreateStudent,
+    onSuccess: (result) => {
+      if (result.created) invalidate();
+    },
+  });
+}
+
 export function useUploadDocument() {
   const invalidate = useInvalidateStudents();
   return useMutation({
     mutationFn: uploadDocument,
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useUpdateStudent() {
+  const invalidate = useInvalidateStudents();
+  return useMutation({
+    mutationFn: updateStudent,
     onSuccess: () => invalidate(),
   });
 }

@@ -13,7 +13,7 @@ function buildCorsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -39,9 +39,13 @@ async function requireVerifiedAdmin(
   authHeader: string,
   admin: ReturnType<typeof createClient>,
 ): Promise<{ id: string; email: string | null } | Response> {
-  const callerClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-    global: { headers: { Authorization: authHeader } },
-  });
+  const callerClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    {
+      global: { headers: { Authorization: authHeader } },
+    },
+  );
   const { data: userData, error: userError } = await callerClient.auth.getUser();
   if (userError || !userData.user) {
     return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401 });
@@ -55,21 +59,26 @@ async function requireVerifiedAdmin(
   // present in verified_sessions, unrevoked, and unexpired.
   let sessionId: string | null = null;
   try {
-    const payload = authHeader.replace(/^Bearer /i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = authHeader
+      .replace(/^Bearer /i, "")
+      .split(".")[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
     sessionId = JSON.parse(atob(payload)).session_id ?? null;
   } catch {
     sessionId = null;
   }
-  const { data: verified } = sessionId
+  const { data: verified, error: verifiedErr } = sessionId
     ? await admin
         .from("verified_sessions")
-        .select("id")
+        .select("session_id")
         .eq("session_id", sessionId)
         .eq("user_id", user.id)
         .eq("revoked", false)
         .gt("expires_at", new Date().toISOString())
         .maybeSingle()
-    : { data: null };
+    : { data: null, error: null };
+  if (verifiedErr) console.error("verified_sessions lookup failed:", verifiedErr.message);
   if (!verified) {
     return new Response(JSON.stringify({ error: "Session not verified" }), { status: 403 });
   }
@@ -200,10 +209,13 @@ Deno.serve(async (req) => {
           api_key: API_KEY,
           signature,
         });
-        const destroyRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/destroy`, {
-          method: "POST",
-          body: destroyBody,
-        });
+        const destroyRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/destroy`,
+          {
+            method: "POST",
+            body: destroyBody,
+          },
+        );
         if (!destroyRes.ok) {
           console.error("student-docs Cloudinary destroy failed:", await destroyRes.text());
           return new Response(JSON.stringify({ error: "Could not delete file" }), {
@@ -238,7 +250,9 @@ Deno.serve(async (req) => {
       }
       const { data: doc, error: fetchError } = await admin
         .from("student_documents")
-        .select("id, file_name, cloudinary_public_id, storage_path, deleted_at, students(student_name)")
+        .select(
+          "id, file_name, cloudinary_public_id, storage_path, deleted_at, students(student_name)",
+        )
         .eq("id", documentId)
         .is("deleted_at", null)
         .maybeSingle();
@@ -287,7 +301,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      const studentName = (doc.students as { student_name: string } | null)?.student_name ?? "student";
+      const studentName =
+        (doc.students as { student_name: string } | null)?.student_name ?? "student";
       await admin.from("audit_logs").insert({
         action: "view",
         record_id: doc.id,

@@ -7,18 +7,21 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  DOCUMENT_LABELS,
-  DOCUMENT_TYPES,
-  REQUIRED_DOCUMENT_TYPES,
+  DOCUMENT_INFO,
+  FOLDER_LABELS,
+  MAX_FILES_PER_STUDENT,
+  documentsForFolder,
+  foldersForClassification,
+} from "@/data/document-catalog";
+import {
   standardFileName,
   type DocumentType,
-  type RequirementStatus,
   type StudentDocument,
   type StudentWithRequirements,
 } from "@/data/students";
-import { supabase } from "@/integrations/supabase/client";
-import { logStudentAudit, validateUploadFile } from "@/lib/students-api";
+import { logStudentAudit, openDocument, validateUploadFile } from "@/lib/students-api";
 import {
   useRemoveDocument,
   useReplaceDocument,
@@ -32,6 +35,12 @@ export const Route = createFileRoute("/_authenticated/master-file/$studentId")({
   }),
   component: StudentFolderPage,
 });
+
+type RequirementStatus = "Submitted" | "Missing";
+
+const DOCUMENT_LABELS = Object.fromEntries(
+  Object.entries(DOCUMENT_INFO).map(([key, info]) => [key, info.label]),
+) as Record<DocumentType, string>;
 
 const STATUS_PILL_CLASS: Record<RequirementStatus, string> = {
   Submitted: "bg-primary-soft text-primary",
@@ -48,7 +57,6 @@ function DocumentCard({
   student,
   type,
   doc,
-  optional = false,
   onUpload,
   onReplace,
   onRemove,
@@ -58,7 +66,6 @@ function DocumentCard({
   student: StudentWithRequirements;
   type: DocumentType;
   doc: StudentDocument | undefined;
-  optional?: boolean;
   onUpload: (type: DocumentType, file: File) => Promise<void>;
   onReplace: (doc: StudentDocument, file: File) => Promise<void>;
   onRemove: (doc: StudentDocument) => Promise<void>;
@@ -78,15 +85,10 @@ function DocumentCard({
   };
 
   return (
-    <div className={`vault-card flex flex-col p-5 ${optional && !doc ? "border-dashed" : ""}`}>
+    <div className="vault-card flex flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">{DOCUMENT_LABELS[type]}</h3>
-          {optional && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Optional — not counted toward the 5 requirements.
-            </p>
-          )}
         </div>
         <span
           className={`inline-flex shrink-0 items-center rounded-lg px-2 py-1 text-xs font-semibold ${STATUS_PILL_CLASS[status]}`}
@@ -212,7 +214,8 @@ function StudentFolderPage() {
   }
 
   const docsByType = new Map(student.documents.map((d) => [d.documentType, d]));
-  const done = REQUIRED_DOCUMENT_TYPES.filter((t) => docsByType.has(t)).length;
+  const applicableFolders = foldersForClassification(student.classification);
+  const totalFiles = student.documents.length;
   const initials = (student.studentName.split(",")[0] ?? "")
     .split(" ")
     .filter(Boolean)
@@ -303,13 +306,7 @@ function StudentFolderPage() {
 
   const handleOpen = async (doc: StudentDocument) => {
     try {
-      const { data, error } = await supabase.functions.invoke("student-docs", {
-        body: { action: "open", documentId: doc.id },
-      });
-      if (error) throw error;
-      const url = (data as { url?: string }).url;
-      if (!url) throw new Error("No link returned");
-      window.open(url, "_blank", "noopener");
+      await openDocument(doc);
     } catch (err) {
       toast.error("Could not open document", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -317,74 +314,92 @@ function StudentFolderPage() {
     }
   };
 
-  const cardProps = { onUpload: handleUpload, onReplace: handleReplace, onRemove: handleRemove, onOpen: handleOpen, busy };
+  const cardProps = {
+    onUpload: handleUpload,
+    onReplace: handleReplace,
+    onRemove: handleRemove,
+    onOpen: handleOpen,
+    busy,
+  };
 
   return (
-    <AppShell title="Student Folder" description="" showSearch={false}>
-      <div className="space-y-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-2 rounded-lg text-muted-foreground"
-          onClick={() => void navigate({ to: "/master-file" })}
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Master File
-        </Button>
+    <TooltipProvider delayDuration={200}>
+      <AppShell title="Student Folder" description="" showSearch={false}>
+        <div className="space-y-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 rounded-lg text-muted-foreground"
+            onClick={() => void navigate({ to: "/master-file" })}
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Master File
+          </Button>
 
-        <div className="vault-card flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-lg font-semibold text-primary">
-              {initials || "—"}
-            </span>
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">
-                {student.studentName}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {[
-                  student.studentNumber ?? "No student no.",
-                  `Batch ${student.batch}`,
-                  student.classification,
-                ].join(" · ")}
-              </p>
+          <div className="vault-card flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-lg font-semibold text-primary">
+                {initials || "—"}
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">
+                  {student.studentName}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {[
+                    student.studentNumber ?? "No student no.",
+                    `Batch ${student.batch}`,
+                    student.classification,
+                  ].join(" · ")}
+                </p>
+              </div>
+            </div>
+            <div className="w-full md:w-56">
+              <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                <span>Files</span>
+                <span className="text-primary">
+                  {totalFiles} / {MAX_FILES_PER_STUDENT}
+                </span>
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                {applicableFolders.map((folder) => (
+                  <Tooltip key={folder}>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`h-2 flex-1 rounded-full ${student.folders[folder].count > 0 ? "bg-secondary" : "bg-muted"}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>{FOLDER_LABELS[folder]}</TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="w-full md:w-56">
-            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-              <span>Requirements</span>
-              <span className="text-primary">{done} / 5</span>
-            </div>
-            <div className="mt-2 flex gap-1.5">
-              {REQUIRED_DOCUMENT_TYPES.map((type) => (
-                <span
-                  key={type}
-                  className={`h-2 flex-1 rounded-full ${docsByType.has(type) ? "bg-secondary" : "bg-muted"}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {DOCUMENT_TYPES.filter((t) => t !== "Other").map((type) => (
-            <DocumentCard
-              key={type}
-              student={student}
-              type={type}
-              doc={docsByType.get(type)}
-              {...cardProps}
-            />
+          {applicableFolders.map((folder) => (
+            <section key={folder} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-foreground">{FOLDER_LABELS[folder]}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {student.folders[folder].count} file
+                  {student.folders[folder].count === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {documentsForFolder(student.classification, folder).map((type) => (
+                  <DocumentCard
+                    key={type}
+                    student={student}
+                    type={type}
+                    doc={docsByType.get(type)}
+                    {...cardProps}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
-          <DocumentCard
-            student={student}
-            type="Other"
-            doc={docsByType.get("Other")}
-            optional
-            {...cardProps}
-          />
-        </section>
-      </div>
-    </AppShell>
+        </div>
+      </AppShell>
+    </TooltipProvider>
   );
 }

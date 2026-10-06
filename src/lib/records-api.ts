@@ -129,7 +129,11 @@ export async function createRecord(input: {
   status: RecordStatus;
   file: File;
 }): Promise<StudentRecord> {
-  const duplicate = await checkDuplicateFile(input.studentName, input.studentNumber, input.file.name);
+  const duplicate = await checkDuplicateFile(
+    input.studentName,
+    input.studentNumber,
+    input.file.name,
+  );
   if (duplicate) {
     throw new Error(`Duplicate file: "${input.file.name}" already exists for this student.`);
   }

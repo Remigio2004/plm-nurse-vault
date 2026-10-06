@@ -1,21 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, Plus, Search, Users } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
-import { toast } from "sonner";
+import { ArrowUpDown, FileText, FileX, Pencil } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
+import { PaginationBar } from "@/components/PaginationBar";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -24,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -32,16 +22,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  CLASSIFICATIONS,
-  DOCUMENT_SHORT_LABELS,
-  REQUIRED_DOCUMENT_TYPES,
-  formatStudentName,
-  type RequirementStatus,
-  type StudentWithRequirements,
-} from "@/data/students";
-import { logStudentAudit } from "@/lib/students-api";
-import { useCreateStudent, useStudents } from "@/lib/use-students";
+  DOCUMENT_INFO,
+  DOCUMENT_TYPES,
+  FOLDERS,
+  FOLDER_LABELS,
+  documentsForFolder,
+  type FolderKey,
+} from "@/data/document-catalog";
+import { CLASSIFICATIONS, type StudentWithRequirements } from "@/data/students";
+import { useStudents } from "@/lib/use-students";
+import { useVault } from "@/lib/vault-store";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/master-file")({
   head: () => ({
@@ -50,310 +43,127 @@ export const Route = createFileRoute("/_authenticated/master-file")({
       {
         name: "description",
         content:
-          "Student requirement tracker for the PLM College of Nursing — TOR, Honorable Dismissal, Curriculum Checklist, Study Plan and Library Card status per student.",
+          "Student requirement tracker for the PLM College of Nursing — Academic Records, Personal Records and Others status per student.",
       },
     ],
   }),
   component: MasterFilePage,
 });
 
-const STATUS_PILL_CLASS: Record<RequirementStatus, string> = {
-  Submitted: "bg-primary-soft text-primary",
-  Missing: "bg-destructive/10 text-destructive",
-};
+// Expected + uploaded files of one folder, stacked vertically.
+// Uploaded = green chip, not yet uploaded = red chip (can be hidden).
+function FolderFiles({
+  student,
+  folder,
+  showMissing,
+}: {
+  student: StudentWithRequirements;
+  folder: FolderKey;
+  showMissing: boolean;
+}) {
+  const expected = documentsForFolder(student.classification, folder);
+  const uploaded = student.documents.filter((d) => d.folder === folder);
+  const uploadedTypes = new Set(uploaded.map((d) => d.documentType));
 
-function StatusPill({ status }: { status: RequirementStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold ${STATUS_PILL_CLASS[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
+  // Folder doesn't apply to this classification and has no files.
+  if (expected.length === 0 && uploaded.length === 0) {
+    return <span className="text-xs text-muted-foreground">N/A</span>;
+  }
 
-function AddStudentDialog() {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [number, setNumber] = useState("");
-  const [batch, setBatch] = useState("");
-  const [classification, setClassification] = useState<string>(CLASSIFICATIONS[0] ?? "CN Graduate");
-  const create = useCreateStudent();
+  const items = [
+    ...uploaded.map((d) => ({
+      key: d.id,
+      type: d.documentType,
+      title: d.fileName,
+      missing: false,
+    })),
+    ...(showMissing
+      ? expected
+          .filter((t) => !uploadedTypes.has(t))
+          .map((t) => ({
+            key: `missing-${t}`,
+            type: t,
+            title: `${DOCUMENT_INFO[t].label} — not uploaded yet`,
+            missing: true,
+          }))
+      : []),
+  ].sort((a, b) => DOCUMENT_TYPES.indexOf(a.type) - DOCUMENT_TYPES.indexOf(b.type));
 
-  const preview = formatStudentName(name);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formatted = formatStudentName(name);
-    if (!formatted) {
-      toast.error("Name format", {
-        description: 'Use "Lastname, Firstname Middlename" — e.g. "Dela Cruz, Juan Pandoro".',
-      });
-      return;
-    }
-    if (!batch.trim()) {
-      toast.error("Batch is required");
-      return;
-    }
-    try {
-      await create.mutateAsync({
-        studentName: formatted,
-        studentNumber: number,
-        batch: batch.trim(),
-        classification,
-      });
-      await logStudentAudit({
-        action: "upload",
-        summary: formatted,
-        details: { module: "master-file", type: "student-created" },
-      });
-      toast.success("Student added", { description: `${formatted} — folder created.` });
-      setOpen(false);
-      setName("");
-      setNumber("");
-      setBatch("");
-      setClassification(CLASSIFICATIONS[0] ?? "CN Graduate");
-    } catch (err) {
-      toast.error("Could not save student", {
-        description: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  };
+  // Missing files are hidden and nothing is uploaded yet.
+  if (items.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="h-11 rounded-xl bg-primary text-primary-foreground hover:bg-secondary">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Student
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="rounded-2xl sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add student</DialogTitle>
-          <DialogDescription>
-            Creates the student folder in the Master File. The display name becomes the folder
-            name.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={submit}>
-          <div className="space-y-2">
-            <Label htmlFor="mf-name">Full name (Lastname, Firstname Middlename)</Label>
-            <Input
-              id="mf-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Dela Cruz, Juan Pandoro"
-              className="h-11 rounded-xl"
-            />
-            <p className="text-xs text-muted-foreground">
-              {preview ? (
-                <span className="text-secondary">Saved as: {preview}</span>
+    <ul className="flex flex-col items-start gap-1.5">
+      {items.map((item) => (
+        <Tooltip key={item.key}>
+          <TooltipTrigger asChild>
+            <li
+              className={
+                item.missing
+                  ? "inline-flex items-start gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive"
+                  : "inline-flex items-start gap-1.5 rounded-lg bg-primary-soft px-2 py-1 text-xs font-semibold text-primary"
+              }
+            >
+              {item.missing ? (
+                <FileX className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               ) : (
-                "Format: Lastname, Firstname Middlename"
+                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               )}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="mf-number">Student no.</Label>
-              <Input
-                id="mf-number"
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-                placeholder="Optional"
-                className="h-11 rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mf-batch">Batch</Label>
-              <Input
-                id="mf-batch"
-                value={batch}
-                onChange={(e) => setBatch(e.target.value)}
-                placeholder="2026"
-                maxLength={4}
-                className="h-11 rounded-xl"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Student classification</Label>
-            <Select value={classification} onValueChange={setClassification}>
-              <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {CLASSIFICATIONS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="submit"
-            disabled={create.isPending}
-            className="h-11 w-full rounded-xl bg-primary text-primary-foreground hover:bg-secondary"
-          >
-            {create.isPending ? "Adding…" : "Add student"}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+              <span>{DOCUMENT_INFO[item.type].label}</span>
+            </li>
+          </TooltipTrigger>
+          <TooltipContent>{item.title}</TooltipContent>
+        </Tooltip>
+      ))}
+    </ul>
   );
 }
 
-function ExcelImportButton() {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const create = useCreateStudent();
-  const [busy, setBusy] = useState(false);
+type SortKey = "studentName" | FolderKey;
 
-  const handleFile = async (file: File) => {
-    setBusy(true);
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0] ?? ""];
-      if (!sheet) {
-        toast.error("Could not read the Excel file", { description: "The first sheet is empty." });
-        return;
-      }
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+const TABLE_PAGE_SIZE = 6;
 
-      // Accept a couple of header spellings per column.
-      const pick = (row: Record<string, unknown>, ...keys: string[]) => {
-        for (const key of keys) {
-          const found = Object.keys(row).find((k) => k.trim().toLowerCase() === key.toLowerCase());
-          if (found) return String(row[found] ?? "").trim();
-        }
-        return "";
-      };
-
-      let added = 0;
-      let skipped = 0;
-      const skippedNames: string[] = [];
-      const seen = new Set<string>();
-
-      for (const row of rows) {
-        // Single "Student Name" column, or separate name parts.
-        const rawName =
-          pick(row, "Student Name", "Full Name", "Name", "student_name") ||
-          (() => {
-            const last = pick(row, "Lastname", "Last Name", "lastname");
-            const first = pick(row, "Firstname", "First Name", "firstname");
-            const middle = pick(row, "Middlename", "Middle Name", "middlename");
-            if (!last || !first) return "";
-            return `${last}, ${first}${middle ? ` ${middle}` : ""}`;
-          })();
-
-        const name = formatStudentName(rawName);
-        if (!name) {
-          skipped += 1;
-          skippedNames.push(rawName || "(blank)");
-          continue;
-        }
-        const key = name.toLowerCase();
-        if (seen.has(key)) {
-          skipped += 1;
-          skippedNames.push(`${name} (duplicate row)`);
-          continue;
-        }
-        seen.add(key);
-
-        const rawClassification = pick(row, "Classification", "Student Classification", "Category");
-        const classification = (CLASSIFICATIONS as readonly string[]).includes(rawClassification)
-          ? rawClassification
-          : (CLASSIFICATIONS[0] ?? "CN Graduate");
-
-        const input = {
-          studentName: name,
-          studentNumber: pick(row, "Student No", "Student Number", "student_no") || null,
-          batch: pick(row, "Batch", "batch"),
-          classification,
-        };
-        if (!input.batch) {
-          skipped += 1;
-          skippedNames.push(`${name} (no batch)`);
-          continue;
-        }
-        try {
-          await create.mutateAsync(input);
-          added += 1;
-        } catch {
-          skipped += 1;
-          skippedNames.push(`${name} (already exists)`);
-        }
-      }
-
-      await logStudentAudit({
-        action: "import",
-        summary: file.name,
-        details: { module: "master-file", added, skipped },
-      });
-
-      if (added > 0) {
-        toast.success(`${added} student${added === 1 ? "" : "s"} imported`, {
-          description: skipped > 0 ? `${skipped} skipped (duplicates or invalid rows).` : undefined,
-        });
-      } else {
-        toast.error("No students imported", {
-          description:
-            skippedNames.length > 0
-              ? `Check the headers and rows. First skip: ${skippedNames[0]}`
-              : "The sheet appears to be empty.",
-        });
-      }
-    } catch {
-      toast.error("Could not read the Excel file");
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  };
-
-  return (
-    <>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-        }}
-      />
-      <Button
-        type="button"
-        variant="outline"
-        disabled={busy}
-        onClick={() => fileRef.current?.click()}
-        className="h-11 rounded-xl border-primary/30 text-primary hover:bg-primary-soft"
-      >
-        <FileSpreadsheet className="mr-2 h-4 w-4" />
-        {busy ? "Importing…" : "Import Excel"}
-      </Button>
-    </>
+// How many expected documents of a folder the student has not uploaded yet.
+function missingCount(student: StudentWithRequirements, folder: FolderKey): number {
+  const uploadedTypes = new Set(
+    student.documents.filter((d) => d.folder === folder).map((d) => d.documentType),
   );
+  return documentsForFolder(student.classification, folder).filter((t) => !uploadedTypes.has(t))
+    .length;
 }
 
 function MasterFilePage() {
   const navigate = useNavigate();
   const { data: students = [], isLoading, isError } = useStudents();
-  const [search, setSearch] = useState("");
+  const { search } = useVault();
   const [batchFilter, setBatchFilter] = useState("all");
+  const [classificationFilter, setClassificationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showMissing, setShowMissing] = useState(true);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
+    key: "studentName",
+    dir: "asc",
+  });
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, batchFilter, classificationFilter, statusFilter, sort]);
 
   const batches = useMemo(
     () => Array.from(new Set(students.map((s) => s.batch))).sort(),
     [students],
   );
 
-  const filtered = useMemo(() => {
+  const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return students.filter((s) => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const list = students.filter((s) => {
       if (batchFilter !== "all" && s.batch !== batchFilter) return false;
+      if (classificationFilter !== "all" && s.classification !== classificationFilter) return false;
+      if (statusFilter !== "all" && s.overall !== statusFilter) return false;
       if (!q) return true;
       return (
         s.studentName.toLowerCase().includes(q) ||
@@ -361,181 +171,233 @@ function MasterFilePage() {
         s.batch.toLowerCase().includes(q)
       );
     });
-  }, [students, search, batchFilter]);
+    return list.sort((a, b) => {
+      const primary =
+        sort.key === "studentName"
+          ? a.studentName.localeCompare(b.studentName)
+          : missingCount(a, sort.key) - missingCount(b, sort.key);
+      return primary * dir || a.studentName.localeCompare(b.studentName);
+    });
+  }, [students, search, batchFilter, classificationFilter, statusFilter, sort]);
 
-  const completeCount = students.filter((s) => s.overall === "Complete").length;
-  const kulangCount = students.length - completeCount;
+  const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = rows.slice((currentPage - 1) * TABLE_PAGE_SIZE, currentPage * TABLE_PAGE_SIZE);
+  const rangeStart = rows.length === 0 ? 0 : (currentPage - 1) * TABLE_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * TABLE_PAGE_SIZE, rows.length);
 
-  const stats = [
-    {
-      label: "Total Students",
-      value: `${students.length}`,
-      sub: "Folders in the Master File",
-      icon: Users,
-    },
-    {
-      label: "Complete (5/5)",
-      value: `${completeCount}`,
-      sub: "All requirements on file",
-      icon: CheckCircle2,
-    },
-    {
-      label: "Incomplete",
-      value: `${kulangCount}`,
-      sub: "Students missing at least one requirement",
-      icon: AlertTriangle,
-    },
-  ];
+  // Folder columns sort by number of missing files (most missing first).
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "studentName" ? "asc" : "desc" },
+    );
+
+  const headerButton =
+    "inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide transition-colors hover:text-primary";
 
   return (
-    <AppShell
-      title="Master File"
-      description="Student requirement tracker — TOR, Honorable Dismissal, Curriculum Checklist, Study Plan, Library Card."
-      showSearch={false}
-    >
-      <div className="space-y-8">
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {isLoading
-            ? [0, 1, 2].map((i) => (
-                <div key={i} className="vault-card p-5">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="mt-3 h-8 w-16" />
-                  <Skeleton className="mt-2 h-3 w-36" />
-                </div>
-              ))
-            : stats.map(({ label, value, sub, icon: Icon }) => (
-                <div
-                  key={label}
-                  className="vault-card group p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                      <p className="mt-2 text-3xl font-semibold tracking-tight text-primary">
-                        {value}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
-                    </div>
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft transition-colors group-hover:bg-gold-soft">
-                      <Icon className="h-5 w-5 text-primary transition-colors group-hover:text-gold-foreground" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-        </section>
-
-        <section className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-56 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, student no. or batch…"
-              className="h-11 rounded-xl pl-9"
-            />
+    <TooltipProvider delayDuration={200}>
+      <AppShell
+        title="Master File"
+        description="Student requirement tracker — Academic Records, Personal Records and Others."
+        searchPlaceholder="Search name, student no. or batch…"
+      >
+        <div className="space-y-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Uploaded
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-destructive" /> Not uploaded yet
+              </span>
+              <span>
+                Showing {rangeStart}–{rangeEnd} of {rows.length} students
+              </span>
+            </div>
+            <label
+              htmlFor="show-missing"
+              className="ml-auto inline-flex cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground"
+            >
+              <Switch id="show-missing" checked={showMissing} onCheckedChange={setShowMissing} />
+              Show files not yet uploaded
+            </label>
           </div>
-          <Select value={batchFilter} onValueChange={setBatchFilter}>
-            <SelectTrigger className="h-11 w-40 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="all">All batches</SelectItem>
-              {batches.map((b) => (
-                <SelectItem key={b} value={b}>
-                  Batch {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ExcelImportButton />
-          <AddStudentDialog />
-        </section>
 
-        <section className="vault-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-surface hover:bg-surface">
-                  <TableHead className="min-w-56">Student</TableHead>
-                  <TableHead className="min-w-28">Student No.</TableHead>
-                  <TableHead className="text-center">Batch</TableHead>
-                  {REQUIRED_DOCUMENT_TYPES.map((type) => (
-                    <TableHead key={type} className="min-w-20 text-center">
-                      {DOCUMENT_SHORT_LABELS[type]}
+          <section className="grid gap-3 sm:grid-cols-3">
+            <Select value={batchFilter} onValueChange={setBatchFilter}>
+              <SelectTrigger className="h-11 w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All batches</SelectItem>
+                {batches.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    Batch {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={classificationFilter} onValueChange={setClassificationFilter}>
+              <SelectTrigger className="h-11 w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All classifications</SelectItem>
+                {CLASSIFICATIONS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-11 w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="Complete">Complete</SelectItem>
+                <SelectItem value="Incomplete">Incomplete</SelectItem>
+              </SelectContent>
+            </Select>
+          </section>
+
+          <section className="vault-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-surface hover:bg-surface">
+                    <TableHead className="min-w-64">
+                      <button
+                        onClick={() => toggleSort("studentName")}
+                        className={cn(
+                          headerButton,
+                          sort.key === "studentName" ? "text-primary" : "text-muted-foreground",
+                        )}
+                      >
+                        Student Info
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                      </button>
                     </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading &&
-                  [0, 1, 2, 3, 4].map((i) => (
-                    <TableRow key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-6 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                {!isLoading &&
-                  filtered.map((student: StudentWithRequirements) => (
-                    <TableRow
-                      key={student.id}
-                      className="cursor-pointer"
-                      onClick={() =>
-                        void navigate({
-                          to: "/master-file/$studentId",
-                          params: { studentId: student.id },
-                        })
-                      }
-                    >
-                      <TableCell>
-                        <Link
-                          to="/master-file/$studentId"
-                          params={{ studentId: student.id }}
-                          className="font-medium text-primary hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {student.studentName}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{student.classification}</p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {student.studentNumber ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">{student.batch}</TableCell>
-                      {REQUIRED_DOCUMENT_TYPES.map((type) => (
-                        <TableCell key={type} className="text-center">
-                          <StatusPill status={student.requirements[type]} />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                {!isLoading && filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
-                      {isError
-                        ? "Students could not be loaded. Please try again."
-                        : students.length === 0
-                          ? "No students yet — add one manually or import an Excel master list."
-                          : "No students match your filters."}
-                    </TableCell>
+                    {FOLDERS.map((folder) => (
+                      <TableHead key={folder} className="min-w-56">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => toggleSort(folder)}
+                              className={cn(
+                                headerButton,
+                                sort.key === folder ? "text-primary" : "text-muted-foreground",
+                              )}
+                            >
+                              {FOLDER_LABELS[folder]}
+                              <ArrowUpDown className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Sort by number of missing files</TooltipContent>
+                        </Tooltip>
+                      </TableHead>
+                    ))}
+                    <TableHead className="w-20 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Action
+                    </TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Legend:</span>
-            <StatusPill status="Submitted" />
-            <StatusPill status="Missing" />
-            <span className="sm:ml-auto">
-              File present = <span className="font-medium text-foreground">Submitted</span>, no
-              file = <span className="font-medium text-foreground">Missing</span>.
-            </span>
-          </div>
-        </section>
-      </div>
-    </AppShell>
+                </TableHeader>
+                <TableBody>
+                  {isLoading &&
+                    [0, 1, 2, 3, 4].map((i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 5 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-6 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  {!isLoading &&
+                    pagedRows.map((student: StudentWithRequirements) => (
+                      <TableRow
+                        key={student.id}
+                        className="cursor-pointer"
+                        onClick={() =>
+                          void navigate({
+                            to: "/master-file/$studentId",
+                            params: { studentId: student.id },
+                          })
+                        }
+                      >
+                        <TableCell className="align-top">
+                          <Link
+                            to="/master-file/$studentId"
+                            params={{ studentId: student.id }}
+                            className="font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {student.studentName}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            {student.studentNumber ?? "No student no."} · Batch {student.batch}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{student.classification}</p>
+                        </TableCell>
+                        {FOLDERS.map((folder) => (
+                          <TableCell key={folder} className="align-top">
+                            <FolderFiles
+                              student={student}
+                              folder={folder}
+                              showMissing={showMissing}
+                            />
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right align-top">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                              >
+                                <Link
+                                  to="/upload"
+                                  search={{ student: student.studentName }}
+                                  aria-label="Edit record"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit record</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  {!isLoading && rows.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
+                        {isError
+                          ? "Students could not be loaded. Please try again."
+                          : students.length === 0
+                            ? "No students yet."
+                            : "No students match your filters."}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+
+          <PaginationBar page={currentPage} totalPages={totalPages} onChange={setPage} />
+        </div>
+      </AppShell>
+    </TooltipProvider>
   );
 }

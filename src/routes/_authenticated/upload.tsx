@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, FileUp, UploadCloud, X } from "lucide-react";
+import { FileCheck2, FileUp, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -14,9 +14,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { RecordStatus, StudentCategory } from "@/data/records";
-import { useCreateRecord } from "@/lib/use-records";
-import { capitalizeWords, cn, formatStudentNumber } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DOCUMENT_INFO,
+  FOLDER_LABELS,
+  MAX_FILES_PER_STUDENT,
+  allDocumentsForClassification,
+  documentsForFolder,
+  foldersForClassification,
+  type DocumentType,
+  type FolderKey,
+} from "@/data/document-catalog";
+import { CLASSIFICATIONS, formatStudentName, standardFileName } from "@/data/students";
+import { errorMessage, logStudentAudit, validateUploadFile } from "@/lib/students-api";
+import {
+  useFindOrCreateStudent,
+  useReplaceDocument,
+  useStudents,
+  useUploadDocument,
+} from "@/lib/use-students";
+import { capitalizeWords, formatStudentNumber } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
@@ -25,7 +42,7 @@ export const Route = createFileRoute("/_authenticated/upload")({
       {
         name: "description",
         content:
-          "File a scanned nursing student document into its batch, student classification and status folder in NurseVault.",
+          "File scanned nursing student documents into the student's Academic Records, Personal Records or Others folder.",
       },
       { property: "og:title", content: "Upload Record — NurseVault" },
       {
@@ -34,293 +51,462 @@ export const Route = createFileRoute("/_authenticated/upload")({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { student?: string } => {
+    const student = search["student"];
+    return typeof student === "string" && student ? { student } : {};
+  },
   component: UploadPage,
 });
 
-// Matches the Supabase Storage bucket's file size limit — files under
-// 10 MB go to Cloudinary automatically, files 10-50 MB fall back to
-// Supabase Storage. The routing itself is invisible to the user.
-const MAX_SIZE = 50 * 1024 * 1024;
+// Checked document -> its PDF (null until a file is attached).
+type Selection = Partial<Record<DocumentType, File | null>>;
 
 function UploadPage() {
   const navigate = useNavigate();
-  const createRecord = useCreateRecord();
+  const { data: students = [] } = useStudents();
+  const findOrCreate = useFindOrCreateStudent();
+  const upload = useUploadDocument();
+  const replace = useReplaceDocument();
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingType = useRef<DocumentType | null>(null);
 
-  const [studentName, setStudentName] = useState("");
+  const { student: presetStudent } = Route.useSearch();
+  const [studentName, setStudentName] = useState(presetStudent ?? "");
   const [studentNumber, setStudentNumber] = useState("");
   const [batchYear, setBatchYear] = useState("");
-  const batch = batchYear ? `Batch ${batchYear}` : "";
-  const [category, setCategory] = useState<StudentCategory | "">("");
-  const [status, setStatus] = useState<RecordStatus | "">("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [dragging, setDragging] = useState(false);
+  const [classification, setClassification] = useState("");
+  const [folder, setFolder] = useState<FolderKey | "all" | "">(presetStudent ? "all" : "");
+  const [selected, setSelected] = useState<Selection>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const submitting = createRecord.isPending;
+  const formattedName = formatStudentName(studentName);
+  const existing = formattedName
+    ? students.find((s) => s.studentName.toLowerCase() === formattedName.toLowerCase())
+    : undefined;
+
+  // An existing folder locks number / batch / classification.
+  const effClassification = existing?.classification ?? classification;
+  const effNumber = existing ? (existing.studentNumber ?? "") : studentNumber;
+  const effBatch = existing ? existing.batch : batchYear;
+
+  const availableFolders = effClassification ? foldersForClassification(effClassification) : [];
+  const activeFolder: FolderKey | "all" | "" =
+    folder === "all" ? "all" : folder && availableFolders.includes(folder) ? folder : "";
+  const visibleFolders: FolderKey[] =
+    activeFolder === "all" ? availableFolders : activeFolder ? [activeFolder] : [];
+
+  const onFile = new Set<DocumentType>(existing?.documents.map((d) => d.documentType) ?? []);
+  const validTypes = new Set<DocumentType>(allDocumentsForClassification(effClassification));
+  const entries = (Object.entries(selected) as [DocumentType, File | null][]).filter(([t]) =>
+    validTypes.has(t),
+  );
+  const readyEntries = entries.filter(([, f]) => f !== null) as [DocumentType, File][];
+  const missingFileCount = entries.length - readyEntries.length;
+  const newEntryCount = readyEntries.filter(([t]) => !onFile.has(t)).length;
+  const totalAfter = (existing?.documents.length ?? 0) + newEntryCount;
+  const overLimit = totalAfter > MAX_FILES_PER_STUDENT;
+
   const ready =
-    studentName.trim() &&
-    batch.trim() &&
-    category &&
-    status &&
-    files.length > 0;
+    !!formattedName &&
+    !!effClassification &&
+    !!effBatch.trim() &&
+    readyEntries.length > 0 &&
+    missingFileCount === 0 &&
+    !overLimit;
 
-  const pickFiles = (selected: FileList | File[] | undefined | null) => {
-    if (!selected) return;
-    const incoming = Array.from(selected);
-    const accepted: File[] = [];
-    for (const candidate of incoming) {
-      const isPdf =
-        candidate.type === "application/pdf" || candidate.name.toLowerCase().endsWith(".pdf");
-      if (!isPdf) {
-        toast.error("PDF files only", {
-          description: `"${candidate.name}" was skipped — please attach scanned records in PDF format.`,
-        });
-        continue;
-      }
-      if (candidate.size > MAX_SIZE) {
-        toast.error("File too large", {
-          description: `"${candidate.name}" was skipped — files must be 50 MB or smaller.`,
-        });
-        continue;
-      }
-      accepted.push(candidate);
-    }
-    if (accepted.length > 0) {
-      setFiles((prev) => [...prev, ...accepted]);
-    }
+  const toggle = (type: DocumentType, checked: boolean) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (checked) next[type] = prev[type] ?? null;
+      else delete next[type];
+      return next;
+    });
   };
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const assignFile = async (type: DocumentType, file: File) => {
+    try {
+      await validateUploadFile(file);
+    } catch (err) {
+      toast.error("File skipped", { description: `"${file.name}" — ${errorMessage(err)}` });
+      return;
+    }
+    setSelected((prev) => ({ ...prev, [type]: file }));
+  };
+
+  const openPicker = (type: DocumentType) => {
+    pendingType.current = type;
+    inputRef.current?.click();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready || files.length === 0) {
-      toast.error("Please complete all fields and attach at least one scanned record.");
+    if (!formattedName) {
+      toast.error("Name format", {
+        description: 'Use "Lastname, Firstname Middlename" — e.g. "Dela Cruz, Juan Pandoro".',
+      });
       return;
     }
-    let successCount = 0;
-    const failed: string[] = [];
-    const duplicates: string[] = [];
-    for (const currentFile of files) {
-      try {
-        await createRecord.mutateAsync({
-          studentName: studentName.trim(),
-          studentNumber: studentNumber.trim() || "-",
-          batch: batch.trim(),
-          category: category as StudentCategory,
-          status: status as RecordStatus,
-          file: currentFile,
-        });
-        successCount += 1;
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Duplicate file:")) {
-          duplicates.push(currentFile.name);
-        } else {
-          failed.push(currentFile.name);
+    if (!ready) {
+      toast.error("Please complete the form and attach a PDF for every checked document.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { student } = await findOrCreate.mutateAsync({
+        studentName: formattedName,
+        studentNumber: effNumber,
+        batch: effBatch.trim(),
+        classification: effClassification,
+      });
+
+      const uploaded: DocumentType[] = [];
+      const failed: string[] = [];
+      for (const [type, file] of readyEntries) {
+        try {
+          const current = existing?.documents.find((d) => d.documentType === type);
+          if (current) {
+            await replace.mutateAsync({
+              document: current,
+              studentName: student.studentName,
+              file,
+            });
+          } else {
+            await upload.mutateAsync({
+              studentId: student.id,
+              studentName: student.studentName,
+              documentType: type,
+              file,
+            });
+          }
+          await logStudentAudit({
+            action: "upload",
+            summary: student.studentName,
+            details: {
+              module: "master-file",
+              requirement: DOCUMENT_INFO[type].label,
+              folder: FOLDER_LABELS[DOCUMENT_INFO[type].folder],
+              file: standardFileName(type, student.studentName),
+              ...(current ? { replaced: true } : {}),
+            },
+          }).catch(() => undefined);
+          uploaded.push(type);
+        } catch (err) {
+          failed.push(`${DOCUMENT_INFO[type].label}: ${errorMessage(err)}`);
         }
       }
-    }
-    if (successCount > 0) {
-      toast.success(successCount === 1 ? "Record uploaded" : `${successCount} records uploaded`, {
-        description: `${studentName.trim()} filed under ${batch.trim()} → ${category} → ${status}.`,
-        icon: <CheckCircle2 className="h-4 w-4" />,
-      });
-    }
-    if (duplicates.length > 0) {
-      toast.error(
-        duplicates.length === 1 ? "Duplicate file skipped" : `${duplicates.length} duplicate files skipped`,
-        {
-          description: `${duplicates.join(", ")} — already on file for ${studentName.trim()} (Student Number: ${studentNumber.trim() || "-"}).`,
-        },
-      );
-    }
-    if (failed.length > 0) {
-      toast.error(
-        failed.length === 1 ? "One file failed to upload" : `${failed.length} files failed to upload`,
-        { description: failed.join(", ") },
-      );
-    }
-    if (successCount > 0) {
-      navigate({ to: "/browse" });
+
+      if (uploaded.length > 0) {
+        toast.success(
+          uploaded.length === 1 ? "Record uploaded" : `${uploaded.length} records uploaded`,
+          {
+            description: `${student.studentName} — filed in the student folder.`,
+          },
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(
+          failed.length === 1
+            ? "One file failed to upload"
+            : `${failed.length} files failed to upload`,
+          { description: failed.join(" · ") },
+        );
+        // Keep only the failed ones so the user can retry.
+        setSelected((prev) => {
+          const next = { ...prev };
+          for (const type of uploaded) delete next[type];
+          return next;
+        });
+        return;
+      }
+      void navigate({ to: "/master-file" });
+    } catch (err) {
+      toast.error("Could not save student", { description: errorMessage(err) });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <AppShell
-      title="Upload Record"
-      description="Attach a scanned document and file it into the vault."
-      showSearch={false}
-    >
-      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="vault-card p-6">
-          <h2 className="text-base font-semibold text-foreground">Student details</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Folders are generated automatically from batch, classification and status.
-          </p>
-
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="studentName">Student Name (SN, FN, MI)</Label>
-              <Input
-                id="studentName"
-                value={studentName}
-                onChange={(e) => setStudentName(capitalizeWords(e.target.value))}
-                placeholder="Dela Cruz, Juan Pandoro"
-                className="h-11 rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="studentNumber">Student Number (optional)</Label>
-              <Input
-                id="studentNumber"
-                inputMode="numeric"
-                value={studentNumber}
-                onChange={(e) => setStudentNumber(formatStudentNumber(e.target.value))}
-                placeholder="2022-23091"
-                maxLength={10}
-                className="h-11 rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="batchYear">Batch</Label>
-              <div className="flex h-11 items-center overflow-hidden rounded-xl border border-input bg-transparent shadow-sm focus-within:ring-1 focus-within:ring-ring">
-                <input
-                  id="batchYear"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={batchYear}
-                  onChange={(e) => setBatchYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="2024"
-                  maxLength={4}
-                  className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Student Classification</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as StudentCategory)}>
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Select classification" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="CN Graduate">CN Graduate</SelectItem>
-                  <SelectItem value="CN Honorable Dismissal">CN Honorable Dismissal</SelectItem>
-                  <SelectItem value="CN Others">CN Others</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as RecordStatus)}>
-                <SelectTrigger className="h-11 rounded-xl sm:max-w-xs">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="Irregular">Irregular</SelectItem>
-                  <SelectItem value="N/A">N/A</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="vault-card p-6">
-            <h2 className="text-base font-semibold text-foreground">Scanned Record</h2>
-            <p className="mt-1 text-sm text-muted-foreground">PDF only · max 50 MB</p>
-
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                pickFiles(e.dataTransfer.files);
-              }}
-              onClick={() => inputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
-              className={cn(
-                "mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-200",
-                dragging
-                  ? "border-gold bg-gold-soft"
-                  : "border-input bg-surface hover:border-accent hover:bg-primary-soft",
-              )}
-            >
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
-                <UploadCloud className="h-7 w-7 text-primary" />
-              </span>
-              <p className="mt-4 text-sm font-medium text-foreground">
-                Drag &amp; drop scanned files here
+    <TooltipProvider delayDuration={200}>
+      <AppShell
+        title="Upload Record"
+        description="Pick a folder, tick the documents you're filing, then attach each PDF."
+        showSearch={false}
+      >
+        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-6">
+            <div className="vault-card p-6">
+              <h2 className="text-base font-semibold text-foreground">Student details</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Files go into the student's folder, under Academic Records, Personal Records or
+                Others.
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                or click to browse your computer — you can select multiple files
-              </p>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".pdf"
-                multiple
-                className="hidden"
-                onChange={(e) => pickFiles(e.target.files)}
-              />
-            </div>
 
-            {files.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {files.map((f, index) => (
-                  <div
-                    key={`${f.name}-${index}`}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5"
+              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="studentName">Student Name (SN, FN, MI)</Label>
+                  <Input
+                    id="studentName"
+                    value={studentName}
+                    onChange={(e) => setStudentName(capitalizeWords(e.target.value))}
+                    placeholder="Dela Cruz, Juan P."
+                    className="h-11 rounded-xl"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {existing ? (
+                      <span className="text-secondary">
+                        Existing folder — number, batch and classification are locked.
+                      </span>
+                    ) : formattedName ? (
+                      <span className="text-secondary">New folder: {formattedName}</span>
+                    ) : (
+                      "Format: Lastname, Firstname Middlename"
+                    )}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="studentNumber">Student Number (optional)</Label>
+                  <Input
+                    id="studentNumber"
+                    inputMode="numeric"
+                    value={effNumber}
+                    disabled={!!existing}
+                    onChange={(e) => setStudentNumber(formatStudentNumber(e.target.value))}
+                    placeholder="2022-23091"
+                    maxLength={10}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="batchYear">Batch</Label>
+                  <Input
+                    id="batchYear"
+                    inputMode="numeric"
+                    value={effBatch}
+                    disabled={!!existing}
+                    onChange={(e) => setBatchYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    placeholder="2024"
+                    maxLength={4}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Student Classification</Label>
+                  <Select
+                    value={effClassification}
+                    disabled={!!existing}
+                    onValueChange={(v) => {
+                      setClassification(v);
+                      setFolder("");
+                      setSelected({});
+                    }}
                   >
-                    <FileUp className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{f.name}</span>
-                    <button
-                      type="button"
-                      aria-label="Remove file"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFile(index);
-                      }}
-                      className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                    <SelectTrigger className="h-11 rounded-xl sm:max-w-xs">
+                      <SelectValue placeholder="Select classification" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {CLASSIFICATIONS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            )}
+            </div>
+
+            <div className="vault-card p-6">
+              <h2 className="text-base font-semibold text-foreground">Documents</h2>
+              <p className="mt-1 text-sm text-muted-foreground">PDF only · max 20 MB each</p>
+
+              <div className="mt-5 space-y-2">
+                <Label>Upload File Types</Label>
+                <Select
+                  value={activeFolder}
+                  disabled={!effClassification}
+                  onValueChange={(v) => setFolder(v as FolderKey | "all")}
+                >
+                  <SelectTrigger className="h-11 rounded-xl sm:max-w-xs">
+                    <SelectValue
+                      placeholder={
+                        effClassification ? "Select folder" : "Select classification first"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="all">All folders</SelectItem>
+                    {availableFolders.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {FOLDER_LABELS[f]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {visibleFolders.map((f) => (
+                <div key={f} className="mt-5 space-y-2">
+                  {activeFolder === "all" && (
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {FOLDER_LABELS[f]}
+                    </p>
+                  )}
+                  {documentsForFolder(effClassification, f).map((type) => {
+                    const isOthers = f === "others";
+                    const info = DOCUMENT_INFO[type];
+                    const alreadyOn = onFile.has(type);
+                    const isChecked = type in selected;
+                    const file = selected[type] ?? null;
+                    const existingDoc = existing?.documents.find((d) => d.documentType === type);
+                    const showPicker = isChecked || alreadyOn || (isOthers && !alreadyOn);
+                    return (
+                      <div
+                        key={type}
+                        className="rounded-xl border border-border bg-surface px-3 py-2.5"
+                      >
+                        <div className="flex items-center gap-3 text-sm">
+                          {!isOthers &&
+                            (alreadyOn ? (
+                              <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
+                            ) : (
+                              <input
+                                id={`doc-${type}`}
+                                type="checkbox"
+                                className="h-4 w-4 accent-primary"
+                                checked={isChecked}
+                                onChange={(e) => toggle(type, e.target.checked)}
+                              />
+                            ))}
+                          <label htmlFor={`doc-${type}`} className="flex-1 text-foreground">
+                            {info.label}
+                          </label>
+                        </div>
+                        {showPicker && (
+                          <div className={`mt-2 flex items-center gap-2 ${isOthers ? "" : "pl-7"}`}>
+                            <FileUp className="h-4 w-4 shrink-0 text-primary" />
+                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                              {file
+                                ? file.name
+                                : existingDoc
+                                  ? existingDoc.fileName
+                                  : "No PDF attached yet"}
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={file ? "Change PDF" : "Choose PDF"}
+                                  className="rounded-lg border-border bg-white text-foreground hover:bg-primary-soft hover:text-primary"
+                                  onClick={() => openPicker(type)}
+                                >
+                                  Change
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{file ? "Change PDF" : "Choose PDF"}</TooltipContent>
+                            </Tooltip>
+                            {(isOthers || alreadyOn) && file && (
+                              <button
+                                type="button"
+                                aria-label="Remove file"
+                                onClick={() => toggle(type, false)}
+                                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="vault-card p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Destination folder
-            </p>
-            <p className="mt-2 text-sm font-medium text-primary">
-              {batch.trim() || "Batch —"} / {category || "Classification —"} / {status || "Status —"}
-            </p>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="mt-5 h-11 w-full rounded-xl bg-gold text-gold-foreground shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold/90 hover:shadow-lift"
-            >
-              {submitting ? "Filing record…" : "Upload Record"}
-            </Button>
+          <div className="space-y-6">
+            <div className="vault-card p-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Destination folder
+              </p>
+              <p className="mt-2 text-sm font-medium text-primary">
+                {formattedName ?? "Student —"} /{" "}
+                {activeFolder === "all"
+                  ? "All folders"
+                  : activeFolder
+                    ? FOLDER_LABELS[activeFolder]
+                    : "Folder —"}
+              </p>
+              <p
+                className={`mt-2 text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {totalAfter} / {MAX_FILES_PER_STUDENT} files for this student
+              </p>
+
+              {entries.length > 0 && (
+                <ul className="mt-4 space-y-2">
+                  {entries.map(([type, file]) => (
+                    <li
+                      key={type}
+                      className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-foreground">
+                          {FOLDER_LABELS[DOCUMENT_INFO[type].folder]} · {DOCUMENT_INFO[type].label}
+                        </span>
+                        <span className="block truncate text-muted-foreground">
+                          {file ? file.name : "No PDF attached yet"}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Remove document"
+                        onClick={() => toggle(type, false)}
+                        className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="mt-5 h-11 w-full rounded-xl bg-gold text-gold-foreground shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold/90 hover:shadow-lift"
+              >
+                {submitting
+                  ? "Filing records…"
+                  : readyEntries.length > 1
+                    ? `Upload ${readyEntries.length} records`
+                    : "Upload Record"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </form>
-    </AppShell>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              const type = pendingType.current;
+              if (file && type) void assignFile(type, file);
+              e.target.value = "";
+              pendingType.current = null;
+            }}
+          />
+        </form>
+      </AppShell>
+    </TooltipProvider>
   );
 }

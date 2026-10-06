@@ -1,55 +1,16 @@
 // Master File domain model.
 
-export const DOCUMENT_TYPES = [
-  "TOR",
-  "HonorableDismissal",
-  "CurriculumChecklist",
-  "StudyPlan",
-  "LibraryCard",
-  "Other",
-] as const;
+import {
+  FOLDERS,
+  documentFileToken,
+  foldersForClassification,
+  type DocumentType,
+  type FolderKey,
+} from "@/data/document-catalog";
 
-export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+export type { DocumentType, FolderKey };
 
-// The five requirements that must all be present for an overall Complete.
-export const REQUIRED_DOCUMENT_TYPES: readonly DocumentType[] = [
-  "TOR",
-  "HonorableDismissal",
-  "CurriculumChecklist",
-  "StudyPlan",
-  "LibraryCard",
-];
-
-export const DOCUMENT_LABELS: Record<DocumentType, string> = {
-  TOR: "Transcript of Records",
-  HonorableDismissal: "Honorable Dismissal",
-  CurriculumChecklist: "Curriculum Checklist",
-  StudyPlan: "Study Plan",
-  LibraryCard: "Library Card",
-  Other: "Other Document",
-};
-
-// Short headers for the tracker table columns.
-export const DOCUMENT_SHORT_LABELS: Record<DocumentType, string> = {
-  TOR: "TOR",
-  HonorableDismissal: "HD",
-  CurriculumChecklist: "CC",
-  StudyPlan: "SP",
-  LibraryCard: "LC",
-  Other: "Other",
-};
-
-// Filename tokens: no spaces, PascalCase per word.
-export const DOCUMENT_FILE_TOKENS: Record<DocumentType, string> = {
-  TOR: "TranscriptOfRecords",
-  HonorableDismissal: "HonorableDismissal",
-  CurriculumChecklist: "CurriculumChecklist",
-  StudyPlan: "StudyPlan",
-  LibraryCard: "LibraryCard",
-  Other: "OtherDocument",
-};
-
-export type RequirementStatus = "Submitted" | "Missing";
+export type FolderStatus = "Submitted" | "Missing" | "N/A";
 
 export type OverallStatus = "Complete" | "Incomplete";
 
@@ -67,6 +28,7 @@ export interface StudentDocument {
   id: string;
   studentId: string;
   documentType: DocumentType;
+  folder: FolderKey;
   fileName: string;
   fileSize: number | null;
   uploadedAt: string;
@@ -74,8 +36,13 @@ export interface StudentDocument {
   storagePath: string | null;
 }
 
+export interface FolderSummary {
+  status: FolderStatus;
+  count: number;
+}
+
 export interface StudentWithRequirements extends Student {
-  requirements: Record<DocumentType, RequirementStatus>;
+  folders: Record<FolderKey, FolderSummary>;
   documents: StudentDocument[];
   overall: OverallStatus;
 }
@@ -131,32 +98,36 @@ export function studentNameToken(studentName: string): string {
 }
 
 /**
- * Locked naming convention: DocumentType_StudentName.pdf
- * e.g. TranscriptOfRecords_DelaCruzJuanPandoro.pdf
+ * Locked naming convention: DocumentKey_StudentName.pdf
+ * e.g. AdmissionSlip_DelaCruzJuanPandoro.pdf
  */
 export function standardFileName(documentType: DocumentType, studentName: string): string {
-  return `${DOCUMENT_FILE_TOKENS[documentType]}_${studentNameToken(studentName)}.pdf`;
+  return `${documentFileToken(documentType)}_${studentNameToken(studentName)}.pdf`;
 }
 
 /**
- * Derive per-requirement statuses and the overall status from the
- * documents a student has. File present = Submitted, absent = Missing.
- * Overall is Complete only when all five requirements are present.
+ * Per-folder status from the documents a student has.
+ * Applicable folder with >= 1 file = Submitted, empty = Missing,
+ * folder that doesn't apply to the classification = N/A.
+ * Overall is Complete when every applicable folder has a file.
  */
-export function deriveRequirements(documents: StudentDocument[]): {
-  requirements: Record<DocumentType, RequirementStatus>;
-  overall: OverallStatus;
-} {
-  const present = new Set(documents.map((d) => d.documentType));
-  const requirements = {} as Record<DocumentType, RequirementStatus>;
-  let allComplete = true;
+export function deriveFolders(
+  classification: string,
+  documents: StudentDocument[],
+): { folders: Record<FolderKey, FolderSummary>; overall: OverallStatus } {
+  const applicable = new Set(foldersForClassification(classification));
+  const folders = {} as Record<FolderKey, FolderSummary>;
+  let complete = true;
 
-  for (const type of REQUIRED_DOCUMENT_TYPES) {
-    const status: RequirementStatus = present.has(type) ? "Submitted" : "Missing";
-    requirements[type] = status;
-    if (status !== "Submitted") allComplete = false;
+  for (const folder of FOLDERS) {
+    const count = documents.filter((d) => d.folder === folder).length;
+    if (!applicable.has(folder)) {
+      folders[folder] = { status: "N/A", count };
+      continue;
+    }
+    folders[folder] = { status: count > 0 ? "Submitted" : "Missing", count };
+    if (count === 0) complete = false;
   }
-  requirements.Other = present.has("Other") ? "Submitted" : "Missing";
 
-  return { requirements, overall: allComplete ? "Complete" : "Incomplete" };
+  return { folders, overall: complete ? "Complete" : "Incomplete" };
 }
