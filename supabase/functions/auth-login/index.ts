@@ -12,7 +12,7 @@ function buildCorsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -68,7 +68,13 @@ Deno.serve(async (req) => {
     if (lockedUntil && lockedUntil > now) {
       const extendedUntil = new Date(now.getTime() + LOCKOUT_MS);
       await admin.from("login_lockouts").upsert(
-        { ip_address: ip, email: emailKey, failed_attempts: failedAttempts, locked_until: extendedUntil.toISOString(), updated_at: now.toISOString() },
+        {
+          ip_address: ip,
+          email: emailKey,
+          failed_attempts: failedAttempts,
+          locked_until: extendedUntil.toISOString(),
+          updated_at: now.toISOString(),
+        },
         { onConflict: "ip_address,email" },
       );
       return new Response(
@@ -93,7 +99,13 @@ Deno.serve(async (req) => {
 
     if (!signInError && signInData.session) {
       await admin.from("login_lockouts").upsert(
-        { ip_address: ip, email: emailKey, failed_attempts: 0, locked_until: null, updated_at: now.toISOString() },
+        {
+          ip_address: ip,
+          email: emailKey,
+          failed_attempts: 0,
+          locked_until: null,
+          updated_at: now.toISOString(),
+        },
         { onConflict: "ip_address,email" },
       );
       return new Response(
@@ -107,10 +119,17 @@ Deno.serve(async (req) => {
 
     // Failed sign-in — increment the counter for this IP.
     failedAttempts += 1;
-    const newLockedUntil = failedAttempts >= MAX_ATTEMPTS ? new Date(now.getTime() + LOCKOUT_MS) : null;
+    const newLockedUntil =
+      failedAttempts >= MAX_ATTEMPTS ? new Date(now.getTime() + LOCKOUT_MS) : null;
 
     await admin.from("login_lockouts").upsert(
-      { ip_address: ip, email: emailKey, failed_attempts: failedAttempts, locked_until: newLockedUntil ? newLockedUntil.toISOString() : null, updated_at: now.toISOString() },
+      {
+        ip_address: ip,
+        email: emailKey,
+        failed_attempts: failedAttempts,
+        locked_until: newLockedUntil ? newLockedUntil.toISOString() : null,
+        updated_at: now.toISOString(),
+      },
       { onConflict: "ip_address,email" },
     );
 

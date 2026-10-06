@@ -15,8 +15,19 @@ export function DeviceVerifyLoader({ label = "Verifying device…" }: { label?: 
         />
 
         {/* outer arc: gold, mabagal, clockwise */}
-        <svg viewBox="0 0 208 208" aria-hidden className="nv-spin-slow absolute inset-0 h-full w-full">
-          <circle cx="104" cy="104" r="100" fill="none" className="stroke-gold/15" strokeWidth="2" />
+        <svg
+          viewBox="0 0 208 208"
+          aria-hidden
+          className="nv-spin-slow absolute inset-0 h-full w-full"
+        >
+          <circle
+            cx="104"
+            cy="104"
+            r="100"
+            fill="none"
+            className="stroke-gold/15"
+            strokeWidth="2"
+          />
           <circle
             cx="104"
             cy="104"
@@ -31,8 +42,19 @@ export function DeviceVerifyLoader({ label = "Verifying device…" }: { label?: 
         </svg>
 
         {/* middle arc: deep green, mabilis, counter-clockwise */}
-        <svg viewBox="0 0 208 208" aria-hidden className="nv-spin-reverse absolute inset-0 h-full w-full">
-          <circle cx="104" cy="104" r="86" fill="none" className="stroke-primary/10" strokeWidth="2" />
+        <svg
+          viewBox="0 0 208 208"
+          aria-hidden
+          className="nv-spin-reverse absolute inset-0 h-full w-full"
+        >
+          <circle
+            cx="104"
+            cy="104"
+            r="86"
+            fill="none"
+            className="stroke-primary/10"
+            strokeWidth="2"
+          />
           <circle
             cx="104"
             cy="104"
@@ -47,8 +69,19 @@ export function DeviceVerifyLoader({ label = "Verifying device…" }: { label?: 
         </svg>
 
         {/* inner arc: light green, katamtaman, clockwise */}
-        <svg viewBox="0 0 208 208" aria-hidden className="nv-spin-medium absolute inset-0 h-full w-full">
-          <circle cx="104" cy="104" r="72" fill="none" className="stroke-accent/15" strokeWidth="2" />
+        <svg
+          viewBox="0 0 208 208"
+          aria-hidden
+          className="nv-spin-medium absolute inset-0 h-full w-full"
+        >
+          <circle
+            cx="104"
+            cy="104"
+            r="72"
+            fill="none"
+            className="stroke-accent/15"
+            strokeWidth="2"
+          />
           <circle
             cx="104"
             cy="104"

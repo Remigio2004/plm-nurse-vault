@@ -8,10 +8,13 @@ const ORIGINS = [
 const cors = (o: string | null) => ({
   "Access-Control-Allow-Origin": o && ORIGINS.some((p) => p.test(o)) ? o : "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Vary": "Origin",
+  Vary: "Origin",
 });
 const json = (b: unknown, s: number, h: Record<string, string>) =>
-  new Response(JSON.stringify(b), { status: s, headers: { ...h, "Content-Type": "application/json" } });
+  new Response(JSON.stringify(b), {
+    status: s,
+    headers: { ...h, "Content-Type": "application/json" },
+  });
 
 const sessionIdFromJwt = (t: string): string | null => {
   try {
@@ -23,7 +26,8 @@ const sessionIdFromJwt = (t: string): string | null => {
 };
 const sha256 = async (s: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
-    .map((b) => b.toString(16).padStart(2, "0")).join("");
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
 const MAX_ATTEMPTS = 5;
 const TRUST_MS = 7 * 24 * 3600_000;
@@ -35,7 +39,10 @@ Deno.serve(async (req) => {
 
   try {
     const token = (req.headers.get("authorization") ?? "").replace(/^Bearer /i, "");
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
     const { data: u, error: uErr } = await admin.auth.getUser(token);
     const sessionId = sessionIdFromJwt(token);
     if (uErr || !u.user || !sessionId) return json({ error: "Unauthorized" }, 401, h);
@@ -43,9 +50,14 @@ Deno.serve(async (req) => {
     const { code } = (await req.json()) as { code?: string };
     if (!code || !/^\d{6}$/.test(code)) return json({ error: "Enter the 6-digit code." }, 400, h);
 
-    const { data: current } = await admin.from("otp_codes").select("*")
-      .eq("session_id", sessionId).is("used_at", null)
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: current } = await admin
+      .from("otp_codes")
+      .select("*")
+      .eq("session_id", sessionId)
+      .is("used_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (!current || new Date(current.expires_at).getTime() < Date.now()) {
       return json({ error: "Code expired. Request a new one." }, 400, h);
@@ -75,8 +87,11 @@ Deno.serve(async (req) => {
         break;
       }
       // Someone else claimed first — re-read and retry with the new value.
-      const { data: refreshed } = await admin.from("otp_codes").select("*")
-        .eq("id", row.id).maybeSingle();
+      const { data: refreshed } = await admin
+        .from("otp_codes")
+        .select("*")
+        .eq("id", row.id)
+        .maybeSingle();
       if (!refreshed) break;
       row = refreshed;
     }
@@ -85,7 +100,11 @@ Deno.serve(async (req) => {
     }
 
     if (hash !== row.code_hash) {
-      return json({ error: "Incorrect code.", attemptsRemaining: MAX_ATTEMPTS - row.attempts }, 400, h);
+      return json(
+        { error: "Incorrect code.", attemptsRemaining: MAX_ATTEMPTS - row.attempts },
+        400,
+        h,
+      );
     }
 
     await admin.from("otp_codes").update({ used_at: new Date().toISOString() }).eq("id", row.id);
@@ -102,11 +121,17 @@ Deno.serve(async (req) => {
 
     // Housekeeping: drop this user's expired devices and revoke the oldest
     // ones beyond the cap so the table cannot grow without bound.
-    await admin.from("trusted_devices").delete()
-      .eq("user_id", u.user.id).lt("expires_at", new Date().toISOString());
+    await admin
+      .from("trusted_devices")
+      .delete()
+      .eq("user_id", u.user.id)
+      .lt("expires_at", new Date().toISOString());
 
-    const { data: active } = await admin.from("trusted_devices").select("id")
-      .eq("user_id", u.user.id).eq("revoked", false)
+    const { data: active } = await admin
+      .from("trusted_devices")
+      .select("id")
+      .eq("user_id", u.user.id)
+      .eq("revoked", false)
       .order("expires_at", { ascending: false });
     const stale = (active ?? []).slice(MAX_TRUSTED_DEVICES - 1).map((d) => d.id);
     if (stale.length > 0) {
@@ -114,7 +139,8 @@ Deno.serve(async (req) => {
     }
 
     const deviceToken = [...crypto.getRandomValues(new Uint8Array(32))]
-      .map((b) => b.toString(16).padStart(2, "0")).join("");
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
     const { error: devErr } = await admin.from("trusted_devices").insert({
       user_id: u.user.id,
       token_hash: await sha256(`${Deno.env.get("OTP_PEPPER")}:device:${deviceToken}`),

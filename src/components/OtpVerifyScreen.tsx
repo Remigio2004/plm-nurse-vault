@@ -12,7 +12,10 @@ async function parseError(error: unknown, fallback: string) {
   if (res && typeof res.json === "function") {
     try {
       const b = await res.json();
-      return { message: (b?.error as string) ?? fallback, retryAfter: b?.retryAfter as number | undefined };
+      return {
+        message: (b?.error as string) ?? fallback,
+        retryAfter: b?.retryAfter as number | undefined,
+      };
     } catch {
       // use fallback
     }
@@ -102,7 +105,9 @@ export function OtpVerifyScreen({
   const verify = async (value: string) => {
     if (busy || value.length !== 6) return;
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("otp-verify", { body: { code: value } });
+    const { data, error } = await supabase.functions.invoke("otp-verify", {
+      body: { code: value },
+    });
     setBusy(false);
     if (error) {
       const { message } = await parseError(error, "Verification failed");
@@ -132,7 +137,13 @@ export function OtpVerifyScreen({
           </p>
 
           <div className="mt-6 flex justify-center">
-            <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={verify} disabled={busy}>
+            <InputOTP
+              maxLength={6}
+              value={code}
+              onChange={setCode}
+              onComplete={verify}
+              disabled={busy}
+            >
               <InputOTPGroup>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <InputOTPSlot key={i} index={i} />
@@ -158,7 +169,11 @@ export function OtpVerifyScreen({
             >
               {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
             </button>
-            <button type="button" onClick={onCancel} className="text-muted-foreground hover:text-foreground">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-muted-foreground hover:text-foreground"
+            >
               Cancel
             </button>
           </div>
