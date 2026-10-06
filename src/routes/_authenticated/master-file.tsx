@@ -141,7 +141,7 @@ function MasterFilePage() {
   const [batchFilter, setBatchFilter] = useState("all");
   const [classificationFilter, setClassificationFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [showMissing, setShowMissing] = useState(true);
+  const [showMissing, setShowMissing] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "studentName",
     dir: "asc",

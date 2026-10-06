@@ -402,14 +402,16 @@ function UploadPage() {
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  aria-label={file ? "Change PDF" : "Choose PDF"}
+                                  aria-label={file || existingDoc ? "Change PDF" : "Upload PDF"}
                                   className="rounded-lg border-border bg-white text-foreground hover:bg-primary-soft hover:text-primary"
                                   onClick={() => openPicker(type)}
                                 >
-                                  Change
+                                  {file || existingDoc ? "Change" : "Upload"}
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>{file ? "Change PDF" : "Choose PDF"}</TooltipContent>
+                              <TooltipContent>
+                                {file || existingDoc ? "Change PDF" : "Upload PDF"}
+                              </TooltipContent>
                             </Tooltip>
                             {(isOthers || alreadyOn) && file && (
                               <button
