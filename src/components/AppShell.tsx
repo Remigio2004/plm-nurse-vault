@@ -99,7 +99,6 @@ export function AppShell({
     };
   }, [signOut]);
 
-
   const sidebar = (
     <div className="flex h-full w-72 flex-col border-r border-sidebar-border bg-sidebar">
       <div className="flex items-center gap-3 px-5 py-6">
@@ -167,7 +166,9 @@ export function AppShell({
             className="absolute inset-0 bg-foreground/40"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative h-full animate-in slide-in-from-left duration-200">{sidebar}</div>
+          <div className="relative h-full animate-in slide-in-from-left duration-200">
+            {sidebar}
+          </div>
         </div>
       )}
 

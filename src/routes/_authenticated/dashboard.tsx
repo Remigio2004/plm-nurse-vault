@@ -81,6 +81,13 @@ function DashboardPage() {
       title="Dashboard"
       description="A quick look at the College of Nursing digital archive."
     >
+      <div className="mb-4 flex items-center gap-2">
+        <Badge className="rounded-lg border-amber-200 bg-amber-50 text-amber-900">Legacy</Badge>
+        <p className="text-sm text-muted-foreground">
+          This view reads the legacy records table for compatibility; the newer student folder flow
+          is in Browse.
+        </p>
+      </div>
       <div className="space-y-8">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {isLoading

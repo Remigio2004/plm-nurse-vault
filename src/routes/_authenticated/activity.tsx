@@ -25,7 +25,12 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AuditAction, AuditLogEntry, DeletedRecord } from "@/data/records";
-import { useAuditLogs, useDeletedRecords, usePurgeRecord, useRestoreRecord } from "@/lib/use-records";
+import {
+  useAuditLogs,
+  useDeletedRecords,
+  usePurgeRecord,
+  useRestoreRecord,
+} from "@/lib/use-records";
 import { useVault } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 
@@ -86,7 +91,11 @@ function ActivityPage() {
   const { data, isLoading, isError } = useAuditLogs();
   const [actionFilter, setActionFilter] = useState<"all" | AuditAction>("all");
 
-  const { data: deletedData, isLoading: deletedLoading, isError: deletedError } = useDeletedRecords();
+  const {
+    data: deletedData,
+    isLoading: deletedLoading,
+    isError: deletedError,
+  } = useDeletedRecords();
   const restoreMutation = useRestoreRecord();
   const purgeMutation = usePurgeRecord();
   const [purgeTarget, setPurgeTarget] = useState<DeletedRecord | null>(null);
@@ -136,6 +145,13 @@ function ActivityPage() {
       description="Every upload, edit, deletion and file view is permanently recorded."
       searchPlaceholder="Search activity by student or user…"
     >
+      <div className="mb-4 flex items-center gap-2">
+        <Badge className="rounded-lg border-amber-200 bg-amber-50 text-amber-900">Legacy</Badge>
+        <p className="text-sm text-muted-foreground">
+          Compatibility view for the older records audit trail. New student-document activity is
+          handled in the Browse workflow.
+        </p>
+      </div>
       <Tabs defaultValue="log" className="space-y-5">
         <TabsList className="rounded-xl bg-muted p-1">
           <TabsTrigger

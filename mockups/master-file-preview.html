@@ -1,0 +1,1555 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Master File — Static Mockup | NurseVault</title>
+    <style>
+      /* ============================================================
+     STATIC MOCKUP — NurseVault design system replica
+     (colors mirrored from src/styles.css oklch tokens)
+     ============================================================ */
+      :root {
+        --primary: #1d5b35;
+        --primary-soft: #e7f2ea;
+        --secondary: #2f7a4b;
+        --accent: #4caf6d;
+        --gold: #d2a23c;
+        --gold-soft: #faf3e2;
+        --gold-text: #8f6a12;
+        --red: #c93a2a;
+        --red-soft: #fdeceb;
+        --bg: #f6f9f6;
+        --card: #ffffff;
+        --border: #e3e9e3;
+        --text: #242624;
+        --muted: #6f7970;
+        --sidebar: #17402a;
+        --sidebar-accent: #204e34;
+        --sidebar-text: #f2f7f2;
+        --sidebar-muted: #a9c0af;
+        --radius: 12px;
+        --shadow-soft: 0 1px 2px rgba(29, 91, 53, 0.06), 0 6px 20px -8px rgba(29, 91, 53, 0.14);
+        --shadow-lift: 0 2px 4px rgba(29, 91, 53, 0.08), 0 18px 40px -16px rgba(29, 91, 53, 0.22);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+      }
+      svg {
+        display: block;
+      }
+
+      /* ---- Mockup banner (not part of the app design) ---- */
+      .mockup-banner {
+        background: repeating-linear-gradient(
+          -45deg,
+          #1d5b35,
+          #1d5b35 14px,
+          #204e34 14px,
+          #204e34 28px
+        );
+        color: #fff;
+        text-align: center;
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+      }
+      .mockup-banner span {
+        opacity: 0.92;
+        font-weight: 500;
+      }
+
+      .app {
+        display: flex;
+        min-height: calc(100vh - 41px);
+      }
+
+      /* ================= SIDEBAR (replica) ================= */
+      .sidebar {
+        width: 264px;
+        flex-shrink: 0;
+        background: var(--sidebar);
+        color: var(--sidebar-text);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #2a563c;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 24px 20px;
+      }
+      .brand-seal {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: radial-gradient(circle at 30% 30%, #2f7a4b, #1d5b35 60%, #12351f);
+        border: 2px solid var(--gold);
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+        color: #f5e7c4;
+        font-weight: 700;
+      }
+      .brand-name {
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.2px;
+      }
+      .brand-sub {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: var(--sidebar-muted);
+        margin-top: 1px;
+      }
+      .side-divider {
+        height: 1px;
+        background: #2a563c;
+        margin: 0 20px;
+      }
+      .nav-label {
+        padding: 16px 20px 8px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: var(--sidebar-muted);
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 2px 16px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        text-decoration: none;
+        color: rgba(242, 247, 242, 0.82);
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .nav a:hover {
+        background: var(--sidebar-accent);
+      }
+      .nav a.active {
+        background: var(--gold);
+        color: #221c07;
+        font-weight: 600;
+        box-shadow: var(--shadow-soft);
+      }
+      .nav a svg {
+        width: 18px;
+        height: 18px;
+        opacity: 0.75;
+      }
+      .nav a.active svg {
+        opacity: 1;
+      }
+      .nav .new-badge {
+        margin-left: auto;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        background: #221c07;
+        color: var(--gold);
+        padding: 2px 7px;
+        border-radius: 999px;
+      }
+      .side-footer {
+        margin-top: auto;
+        padding: 16px;
+      }
+      .session-box {
+        background: var(--sidebar-accent);
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 14px;
+      }
+      .session-box b {
+        font-size: 12px;
+      }
+      .session-box p {
+        font-size: 10.5px;
+        color: var(--sidebar-muted);
+        margin-top: 4px;
+        line-height: 1.45;
+      }
+      .side-logout {
+        width: 100%;
+        background: none;
+        border: none;
+        color: rgba(242, 247, 242, 0.85);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .side-logout:hover {
+        background: rgba(201, 58, 42, 0.18);
+        color: #ffb4aa;
+      }
+
+      /* ================= MAIN ================= */
+      .main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .topbar {
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 28px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      .topbar h1 {
+        font-size: 21px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+      }
+      .topbar p {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 9px 14px;
+        width: 300px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .content {
+        padding: 24px 28px 48px;
+      }
+
+      /* ---- Tabs ---- */
+      .tabs {
+        display: inline-flex;
+        background: #eef3ee;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+        margin-bottom: 20px;
+      }
+      .tabs button {
+        border: none;
+        background: none;
+        padding: 8px 16px;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .tabs button.active {
+        background: #fff;
+        color: var(--primary);
+        box-shadow: var(--shadow-soft);
+      }
+      .tab-panel[hidden] {
+        display: none;
+      }
+
+      /* ---- Stat cards ---- */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+      .stat {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px 18px;
+        box-shadow: var(--shadow-soft);
+      }
+      .stat .k {
+        font-size: 11.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--muted);
+      }
+      .stat .v {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        margin-top: 2px;
+      }
+      .stat .d {
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      .stat.ok .v {
+        color: var(--primary);
+      }
+      .stat.warn .v {
+        color: var(--red);
+      }
+
+      /* ---- Card / toolbar / table ---- */
+      .vault-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px;
+        flex-wrap: wrap;
+      }
+      .toolbar .grow {
+        flex: 1;
+      }
+      .input {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px 12px;
+        color: var(--muted);
+        font-size: 13px;
+        min-width: 200px;
+      }
+      .select {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid transparent;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: var(--secondary);
+      }
+      .btn-outline {
+        background: #fff;
+        border-color: var(--border);
+        color: var(--text);
+      }
+      .btn-outline:hover {
+        background: var(--bg);
+      }
+      .btn-ghost-danger {
+        background: none;
+        color: var(--red);
+        border-color: transparent;
+      }
+      .btn-ghost-danger:hover {
+        background: var(--red-soft);
+      }
+      .btn-sm {
+        padding: 5px 11px;
+        font-size: 12px;
+        border-radius: 9px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      thead th {
+        text-align: left;
+        padding: 10px 14px;
+        background: #f4f8f4;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      tbody td {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf2ed;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      tbody tr:hover {
+        background: #f7faf7;
+      }
+      .student-name {
+        font-weight: 600;
+      }
+      .student-sub {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 1px;
+      }
+      .num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tcenter {
+        text-align: center;
+      }
+
+      /* ---- Status pills ---- */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .pill .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .pill-submitted {
+        background: #e3f3e8;
+        color: #276e44;
+      }
+      .pill-missing {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+      .pill-pending {
+        background: var(--gold-soft);
+        color: var(--gold-text);
+      }
+      .pill-complete {
+        background: var(--primary);
+        color: #fff;
+      }
+      .pill-overall-complete {
+        background: var(--primary);
+        color: #fff;
+        padding: 4px 12px;
+        font-size: 11px;
+      }
+      .pill-overall-inc {
+        background: #f1f4f1;
+        color: var(--muted);
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .pill-overall-inc b {
+        color: var(--red);
+      }
+
+      .legend {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 12px 16px;
+        border-top: 1px solid #edf2ed;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      .legend .pill {
+        transform: scale(0.95);
+      }
+
+      /* ================= FOLDER VIEW ================= */
+      .crumbs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-bottom: 14px;
+      }
+      .crumbs b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .folder-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        flex-wrap: wrap;
+      }
+      .folder-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .folder-meta {
+        flex: 1;
+        min-width: 220px;
+      }
+      .folder-meta h2 {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      .folder-meta .meta-line {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .folder-meta .meta-line span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .progress-wrap {
+        width: 240px;
+      }
+      .progress-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .progress-track {
+        height: 8px;
+        border-radius: 999px;
+        background: #edf2ed;
+        overflow: hidden;
+        display: flex;
+      }
+      .progress-track i {
+        height: 100%;
+        background: var(--secondary);
+      }
+      .progress-seg {
+        display: flex;
+        gap: 3px;
+      }
+      .progress-seg i {
+        flex: 1;
+        height: 8px;
+        border-radius: 4px;
+        background: #edf2ed;
+      }
+      .progress-seg i.on {
+        background: var(--secondary);
+      }
+
+      .rule-strip {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        background: var(--gold-soft);
+        border: 1px solid #efe0b8;
+        border-radius: 14px;
+        padding: 12px 16px;
+        margin: 16px 0;
+        font-size: 12.5px;
+        color: #6b5312;
+      }
+      .rule-strip code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: #fff;
+        border: 1px solid #efe0b8;
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+
+      .doc-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 14px;
+      }
+      .doc-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+        padding: 16px;
+      }
+      .doc-card.optional {
+        border-style: dashed;
+        box-shadow: none;
+        background: #fbfdfb;
+      }
+      .doc-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .doc-head h3 {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .doc-head .tag {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .doc-file {
+        margin: 10px 0 4px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        background: #f4f8f4;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #33493a;
+        word-break: break-all;
+        white-space: normal;
+      }
+      .doc-file.missing-slot {
+        color: #a3aca4;
+        border-style: dashed;
+        background: #fafcfa;
+      }
+      .doc-meta {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 6px 0 12px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .doc-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .doc-actions .grow {
+        flex: 1;
+      }
+      .lock-note {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .override {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .override .select {
+        padding: 4px 8px;
+        font-size: 11px;
+        border-radius: 8px;
+      }
+
+      .duo-paths {
+        display: flex;
+        gap: 14px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .path-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-size: 12.5px;
+        box-shadow: var(--shadow-soft);
+      }
+      .path-chip b {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      /* ================= DIALOGS TAB ================= */
+      .dialog-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 18px;
+      }
+      .dialog {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-lift);
+        overflow: hidden;
+      }
+      .dialog-head {
+        padding: 18px 20px 0;
+      }
+      .dialog-head h3 {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .dialog-head p {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .dialog-body {
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .field label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .field .control {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 9px 12px;
+        font-size: 13px;
+        background: #fff;
+        color: var(--text);
+      }
+      .field .hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .field .hint.good {
+        color: var(--secondary);
+      }
+      .dialog-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 0 20px 20px;
+      }
+      .dropzone {
+        border: 2px dashed #bfd4c3;
+        border-radius: 14px;
+        background: #f6faf6;
+        padding: 26px 16px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .dropzone b {
+        color: var(--primary);
+      }
+      .imp-table {
+        width: 100%;
+        font-size: 11.5px;
+      }
+      .imp-table th {
+        padding: 7px 9px;
+      }
+      .imp-table td {
+        padding: 8px 9px;
+        font-family: var(--mono);
+      }
+      .ok-cell {
+        color: var(--secondary);
+        font-weight: 700;
+      }
+      .warn-cell {
+        color: var(--gold-text);
+        font-weight: 700;
+      }
+      .note-strip {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        background: var(--primary-soft);
+        border: 1px solid #cfe5d5;
+        border-radius: 12px;
+        padding: 10px 13px;
+        font-size: 12px;
+        color: #1d5b35;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mockup-banner">
+      📐 STATIC MOCKUP — visual preview lang ito, hindi pa totoong code.
+      <span
+        >Walang mababago sa Browse / Upload / Dashboard / Activity — bagong hiwalay na module lang
+        ang idadagdag.</span
+      >
+    </div>
+
+    <div class="app">
+      <!-- ======================= SIDEBAR ======================= -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-seal">✚</div>
+          <div>
+            <div class="brand-name">NurseVault</div>
+            <div class="brand-sub">PLM College of Nursing</div>
+          </div>
+        </div>
+        <div class="side-divider"></div>
+        <p class="nav-label">Records Office</p>
+        <nav class="nav">
+          <a href="#"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <rect x="3" y="3" width="7" height="9" rx="1" />
+              <rect x="14" y="3" width="7" height="5" rx="1" />
+              <rect x="14" y="12" width="7" height="9" rx="1" />
+              <rect x="3" y="16" width="7" height="5" rx="1" /></svg
+            >Dashboard</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" /></svg
+            >Upload Record</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+              /></svg
+            >Browse Folders</a
+          >
+          <a href="#" class="active"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="8" y="2" width="8" height="4" rx="1" />
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+              <path d="m9 14 2 2 4-4" /></svg
+            >Master File<span class="new-badge">NEW</span></a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" /></svg
+            >Activity Log</a
+          >
+        </nav>
+        <div class="side-footer">
+          <div class="session-box">
+            <b>Secure session</b>
+            <p>You will be signed out automatically after 15 minutes of inactivity.</p>
+          </div>
+          <button class="side-logout">
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" /></svg
+            >Log out
+          </button>
+        </div>
+      </aside>
+
+      <!-- ======================= MAIN ======================= -->
+      <div class="main">
+        <header class="topbar">
+          <div>
+            <h1>Master File</h1>
+            <p>
+              Student requirement tracker — TOR · Honorable Dismissal · Curriculum Checklist · Study
+              Plan · Library Card
+            </p>
+          </div>
+          <div class="search">
+            <svg
+              viewBox="0 0 24 24"
+              width="15"
+              height="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" /></svg
+            >Search students, student no., batch…
+          </div>
+        </header>
+
+        <main class="content">
+          <div class="tabs">
+            <button type="button" data-tab data-target="tab-list" class="active">
+              📋 List View — Tracker Table
+            </button>
+            <button type="button" data-tab data-target="tab-folder">
+              📁 Folder View — Per Student
+            </button>
+            <button type="button" data-tab data-target="tab-dialogs">
+              ➕ Add Student &amp; Excel Import
+            </button>
+          </div>
+
+          <!-- ================= TAB 1: LIST VIEW ================= -->
+          <section id="tab-list" class="tab-panel">
+            <div class="stats">
+              <div class="stat">
+                <div class="k">Total Students</div>
+                <div class="v">6</div>
+                <div class="d">sample data lang</div>
+              </div>
+              <div class="stat ok">
+                <div class="k">Complete (5/5)</div>
+                <div class="v">2</div>
+                <div class="d">lahat ng requirements na-submit</div>
+              </div>
+              <div class="stat warn">
+                <div class="k">May Kulang</div>
+                <div class="v">4</div>
+                <div class="d">may Missing o Pending</div>
+              </div>
+              <div class="stat">
+                <div class="k">Manual Overrides</div>
+                <div class="v">2</div>
+                <div class="d">Pending / Complete set ng admin</div>
+              </div>
+            </div>
+
+            <div class="vault-card">
+              <div class="toolbar">
+                <div class="input">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" /></svg
+                  >Filter by name…
+                </div>
+                <select class="select">
+                  <option>Batch: All</option>
+                  <option>Batch 2024</option>
+                  <option>Batch 2025</option>
+                  <option>Batch 2026</option>
+                </select>
+                <select class="select">
+                  <option>Overall: All</option>
+                  <option>Complete</option>
+                  <option>May kulang</option>
+                </select>
+                <div class="grow"></div>
+                <button class="btn btn-outline" type="button">⬆ Import Excel</button>
+                <button class="btn btn-primary" type="button">＋ Add Student</button>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Student No.</th>
+                    <th>Batch</th>
+                    <th class="tcenter">TOR</th>
+                    <th class="tcenter">HD</th>
+                    <th class="tcenter">CC</th>
+                    <th class="tcenter">SP</th>
+                    <th class="tcenter">LC</th>
+                    <th>Overall</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="student-name">Dela Cruz, Juan P.</div>
+                      <div class="student-sub">CN Graduate</div>
+                    </td>
+                    <td class="num">2021-00001</td>
+                    <td>2025</td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td>
+                      <span class="pill pill-overall-inc"><b>3/5</b>&nbsp;Kulang</span>
+                    </td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="student-name">Santos, Maria Clara Reyes</div>
+                      <div class="student-sub">CN Graduate</div>
+                    </td>
+                    <td class="num">2020-00114</td>
+                    <td>2024</td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td><span class="pill pill-overall-complete">✓ Complete</span></td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="student-name">Reyes, Angelo Magsaysay</div>
+                      <div class="student-sub">CN Honorable Dismissal</div>
+                    </td>
+                    <td class="num">2021-00087</td>
+                    <td>2025</td>
+                    <td class="tcenter">
+                      <span class="pill pill-pending"><span class="dot"></span>Pending&nbsp;✎</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td>
+                      <span class="pill pill-overall-inc"><b>2/5</b>&nbsp;Kulang</span>
+                    </td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="student-name">Lim, Katherine Anne</div>
+                      <div class="student-sub">CN Graduate</div>
+                    </td>
+                    <td class="num">2020-00129</td>
+                    <td>2024</td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-complete"
+                        ><span class="dot"></span>Complete&nbsp;✎</span
+                      >
+                    </td>
+                    <td><span class="pill pill-overall-complete">✓ Complete</span></td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="student-name">Garcia, Pedro Sancho</div>
+                      <div class="student-sub">CN Graduate</div>
+                    </td>
+                    <td class="num">2021-00210</td>
+                    <td>2025</td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td>
+                      <span class="pill pill-overall-inc"><b>1/5</b>&nbsp;Kulang</span>
+                    </td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="student-name">Aquino, Jose Rizal Bautista</div>
+                      <div class="student-sub">CN Others</div>
+                    </td>
+                    <td class="num">2022-00043</td>
+                    <td>2026</td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td class="tcenter">
+                      <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                    </td>
+                    <td>
+                      <span class="pill pill-overall-inc"><b>0/5</b>&nbsp;Kulang</span>
+                    </td>
+                    <td>
+                      <button class="btn btn-outline btn-sm" type="button">Open Folder →</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="legend">
+                <span><b>Legend:</b></span>
+                <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                <span class="pill pill-pending"
+                  ><span class="dot"></span>Pending ✎ = manual override</span
+                >
+                <span class="pill pill-complete"
+                  ><span class="dot"></span>Complete ✎ = manual override</span
+                >
+                <span style="margin-left: auto"
+                  >Auto status: may file = <b>Submitted</b>, walang file = <b>Missing</b>. Overall =
+                  <b>Complete</b> lang kapag <b>5/5</b>.</span
+                >
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= TAB 2: FOLDER VIEW ================= -->
+          <section id="tab-folder" class="tab-panel" hidden>
+            <div class="crumbs">Master File <span>›</span> <b>Dela Cruz, Juan P.</b></div>
+
+            <div class="vault-card">
+              <div class="folder-head">
+                <div class="folder-avatar">DC</div>
+                <div class="folder-meta">
+                  <h2>Dela Cruz, Juan Pandoro</h2>
+                  <div class="meta-line">
+                    <span>🆔 <span class="num" style="color: var(--text)">2021-00001</span></span>
+                    <span>🎓 Batch 2025</span>
+                    <span>🏷️ CN Graduate</span>
+                    <span
+                      >📁 Folder: <b>Dela Cruz, Juan Pandoro</b>
+                      <em style="font-style: normal; color: var(--muted)"
+                        >(unique, case-insensitive)</em
+                      ></span
+                    >
+                  </div>
+                </div>
+                <div class="progress-wrap">
+                  <div class="progress-top">
+                    <span>Requirements</span><span style="color: var(--primary)">3 / 5</span>
+                  </div>
+                  <div class="progress-seg">
+                    <i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rule-strip">
+              <span>🔒</span>
+              <div>
+                <b>Locked file naming</b> — awtomatikong ipapangalan ang file, hindi pwedeng
+                palitan: <code>DocumentType_StudentNameToken.pdf</code> →
+                <code>TranscriptOfRecords_DelaCruzJuanPandoro.pdf</code>
+              </div>
+            </div>
+
+            <div class="doc-grid">
+              <div class="doc-card">
+                <div class="doc-head">
+                  <h3>Transcript of Records</h3>
+                  <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                </div>
+                <div class="doc-file">📄 TranscriptOfRecords_DelaCruzJuanPandoro.pdf</div>
+                <div class="doc-meta">
+                  <span>1.8 MB</span><span>Uploaded Oct 5, 2026</span><span>via Cloudinary</span>
+                </div>
+                <div class="doc-actions">
+                  <button class="btn btn-outline btn-sm" type="button">👁 View</button>
+                  <button class="btn btn-outline btn-sm" type="button">⟳ Replace</button>
+                  <div class="grow"></div>
+                  <button class="btn btn-ghost-danger btn-sm" type="button">🗑 Delete</button>
+                </div>
+                <div class="lock-note">
+                  🔒 Naka-lock ang filename — palitan lang ang mismong file.
+                </div>
+              </div>
+
+              <div class="doc-card">
+                <div class="doc-head">
+                  <h3>Honorable Dismissal</h3>
+                  <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                </div>
+                <div class="doc-file missing-slot">
+                  📄 HonorableDismissal_DelaCruzJuanPandoro.pdf
+                </div>
+                <div class="doc-meta"><span>Wala pang na-upload</span></div>
+                <div class="doc-actions">
+                  <button class="btn btn-primary btn-sm" type="button">⬆ Upload PDF</button>
+                  <div class="grow"></div>
+                  <span class="override"
+                    >Override:
+                    <select class="select" disabled>
+                      <option>—</option>
+                      <option>Pending</option>
+                      <option>Complete</option>
+                    </select></span
+                  >
+                </div>
+                <div class="lock-note">
+                  🔒 I-rename ang file sa tamang format, o aayusin ito ng system.
+                </div>
+              </div>
+
+              <div class="doc-card">
+                <div class="doc-head">
+                  <h3>Curriculum Checklist</h3>
+                  <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                </div>
+                <div class="doc-file">📄 CurriculumChecklist_DelaCruzJuanPandoro.pdf</div>
+                <div class="doc-meta">
+                  <span>640 KB</span><span>Uploaded Oct 4, 2026</span
+                  ><span>via Storage (&gt;10MB pool)</span>
+                </div>
+                <div class="doc-actions">
+                  <button class="btn btn-outline btn-sm" type="button">👁 View</button>
+                  <button class="btn btn-outline btn-sm" type="button">⟳ Replace</button>
+                  <div class="grow"></div>
+                  <button class="btn btn-ghost-danger btn-sm" type="button">🗑 Delete</button>
+                </div>
+                <div class="lock-note">
+                  🔒 Naka-lock ang filename — palitan lang ang mismong file.
+                </div>
+              </div>
+
+              <div class="doc-card">
+                <div class="doc-head">
+                  <h3>Study Plan</h3>
+                  <span class="pill pill-missing"><span class="dot"></span>Missing</span>
+                </div>
+                <div class="doc-file missing-slot">📄 StudyPlan_DelaCruzJuanPandoro.pdf</div>
+                <div class="doc-meta"><span>Wala pang na-upload</span></div>
+                <div class="doc-actions">
+                  <button class="btn btn-primary btn-sm" type="button">⬆ Upload PDF</button>
+                  <div class="grow"></div>
+                  <span class="override"
+                    >Override:
+                    <select class="select" disabled>
+                      <option>Pending</option>
+                      <option>Complete</option>
+                    </select></span
+                  >
+                </div>
+                <div class="lock-note">
+                  🔒 I-rename ang file sa tamang format, o aayusin ito ng system.
+                </div>
+              </div>
+
+              <div class="doc-card">
+                <div class="doc-head">
+                  <h3>Library Card</h3>
+                  <span class="pill pill-submitted"><span class="dot"></span>Submitted</span>
+                </div>
+                <div class="doc-file">📄 LibraryCard_DelaCruzJuanPandoro.pdf</div>
+                <div class="doc-meta">
+                  <span>310 KB</span><span>Uploaded Oct 3, 2026</span><span>via Cloudinary</span>
+                </div>
+                <div class="doc-actions">
+                  <button class="btn btn-outline btn-sm" type="button">👁 View</button>
+                  <button class="btn btn-outline btn-sm" type="button">⟳ Replace</button>
+                  <div class="grow"></div>
+                  <button class="btn btn-ghost-danger btn-sm" type="button">🗑 Delete</button>
+                </div>
+                <div class="lock-note">
+                  🔒 Naka-lock ang filename — palitan lang ang mismong file.
+                </div>
+              </div>
+
+              <div class="doc-card optional">
+                <div class="doc-head">
+                  <h3>Other Document <span class="tag">· optional</span></h3>
+                  <span class="pill pill-missing"><span class="dot"></span>None</span>
+                </div>
+                <div class="doc-file missing-slot">📄 OtherDocument_DelaCruzJuanPandoro.pdf</div>
+                <div class="doc-meta"><span>Hindi binibilang sa Overall status</span></div>
+                <div class="doc-actions">
+                  <button class="btn btn-outline btn-sm" type="button">⬆ Upload</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="duo-paths">
+              <div class="path-chip">
+                ☁️ <span>≤ 10 MB → <b>Cloudinary</b> (may 5-min signed URL)</span>
+              </div>
+              <div class="path-chip">
+                🗄️ <span>&gt; 10 MB → <b>Supabase Storage</b> (student-records)</span>
+              </div>
+              <div class="path-chip">
+                🛡️ <span>Verified session + admin lang — may audit log bawat galaw</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= TAB 3: DIALOGS ================= -->
+          <section id="tab-dialogs" class="tab-panel" hidden>
+            <div class="dialog-row">
+              <div class="dialog">
+                <div class="dialog-head">
+                  <h3>Add Student</h3>
+                  <p>Bagong folder sa Master File. Ang pangalan ang maging folder name.</p>
+                </div>
+                <div class="dialog-body">
+                  <div class="field">
+                    <label>Full Name (Lastname, Firstname Middlename)</label>
+                    <div class="control">dELA cRUZ, juan pandoro</div>
+                    <div class="hint good">✓ Auto-format: <b>Dela Cruz, Juan P.</b></div>
+                  </div>
+                  <div class="field">
+                    <label
+                      >Student No. <em style="font-style: normal">(optional, unique)</em></label
+                    >
+                    <div class="control">2021-00001</div>
+                  </div>
+                  <div class="field">
+                    <label>Batch</label>
+                    <div class="control">2025</div>
+                  </div>
+                  <div class="field">
+                    <label>Classification</label>
+                    <div class="control">CN Graduate ▾</div>
+                    <div class="hint">CN Graduate · CN Honorable Dismissal · CN Others</div>
+                  </div>
+                  <div class="note-strip">
+                    ℹ️ Kapag may kapareho nang pangalan (kahit magkaibang capitalization),
+                    hahadlangan ng database — isang folder per estudyante.
+                  </div>
+                </div>
+                <div class="dialog-foot">
+                  <button class="btn btn-outline" type="button">Cancel</button>
+                  <button class="btn btn-primary" type="button">Add Student</button>
+                </div>
+              </div>
+
+              <div class="dialog">
+                <div class="dialog-head">
+                  <h3>Import Students from Excel</h3>
+                  <p>Import/populate lang ng master list — walang files na isasama.</p>
+                </div>
+                <div class="dialog-body">
+                  <div class="dropzone">
+                    ⬆ <b>Drop .xlsx / .csv here</b> o i-click para pumili ng file<br />Ang unang
+                    sheet ang babasahin; may header row na kailangan.
+                  </div>
+                  <div class="field">
+                    <label>Inaasahang columns (header row)</label>
+                    <div class="control" style="font-family: var(--mono); font-size: 11.5px">
+                      student_no · lastname · firstname · middlename · batch · classification
+                    </div>
+                    <div class="hint">
+                      Mismong filename ng Excel, kahit anong format ng letters — auto-Title Case:
+                      "DELA CRUZ, JUAN PANDORO" → <b>Dela Cruz, Juan P.</b>
+                    </div>
+                  </div>
+                  <table class="imp-table">
+                    <thead>
+                      <tr>
+                        <th>Preview</th>
+                        <th>Batch</th>
+                        <th>Check</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Dela Cruz, Juan Pandoro</td>
+                        <td>2025</td>
+                        <td class="ok-cell">✓ Valid</td>
+                      </tr>
+                      <tr>
+                        <td>Santos, Maria Clara</td>
+                        <td>2024</td>
+                        <td class="ok-cell">✓ Valid</td>
+                      </tr>
+                      <tr>
+                        <td>dela cruz, juan pandoro</td>
+                        <td>2025</td>
+                        <td class="warn-cell">⚠ Duplicate folder name — iskip</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="dialog-foot">
+                  <button class="btn btn-outline" type="button">Cancel</button>
+                  <button class="btn btn-primary" type="button">Import 2 students</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      const tabButtons = document.querySelectorAll("[data-tab]");
+      tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          tabButtons.forEach((b) => b.classList.toggle("active", b === btn));
+          document.querySelectorAll(".tab-panel").forEach((p) => {
+            p.hidden = p.id !== btn.dataset.target;
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
