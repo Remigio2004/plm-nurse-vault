@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       audit_logs: {
@@ -70,34 +45,62 @@ export type Database = {
           record_summary?: string
           timestamp?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "audit_logs_record_id_fkey"
-            columns: ["record_id"]
-            isOneToOne: false
-            referencedRelation: "records"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       login_lockouts: {
         Row: {
+          email: string | null
           failed_attempts: number
           ip_address: string
           locked_until: string | null
           updated_at: string
         }
         Insert: {
+          email?: string | null
           failed_attempts?: number
           ip_address: string
           locked_until?: string | null
           updated_at?: string
         }
         Update: {
+          email?: string | null
           failed_attempts?: number
           ip_address?: string
           locked_until?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          session_id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          session_id: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          session_id?: string
+          used_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -152,11 +155,173 @@ export type Database = {
         }
         Relationships: []
       }
+      student_documents: {
+        Row: {
+          cloudinary_public_id: string | null
+          deleted_at: string | null
+          document_type: string
+          file_name: string
+          file_size: number | null
+          id: string
+          storage_path: string | null
+          student_id: string
+          uploaded_at: string
+        }
+        Insert: {
+          cloudinary_public_id?: string | null
+          deleted_at?: string | null
+          document_type: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          storage_path?: string | null
+          student_id: string
+          uploaded_at?: string
+        }
+        Update: {
+          cloudinary_public_id?: string | null
+          deleted_at?: string | null
+          document_type?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          storage_path?: string | null
+          student_id?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_documents_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_status_overrides: {
+        Row: {
+          document_type: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          document_type: string
+          status: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          document_type?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_status_overrides_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          batch: string
+          classification: string
+          created_at: string
+          id: string
+          student_name: string
+          student_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch: string
+          classification: string
+          created_at?: string
+          id?: string
+          student_name: string
+          student_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch?: string
+          classification?: string
+          created_at?: string
+          id?: string
+          student_name?: string
+          student_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trusted_devices: {
+        Row: {
+          created_at: string
+          device_label: string | null
+          expires_at: string
+          id: string
+          revoked: boolean
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_label?: string | null
+          expires_at: string
+          id?: string
+          revoked?: boolean
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_label?: string | null
+          expires_at?: string
+          id?: string
+          revoked?: boolean
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      verified_sessions: {
+        Row: {
+          device_label: string | null
+          expires_at: string
+          revoked: boolean
+          session_id: string
+          user_id: string
+          verified_at: string
+        }
+        Insert: {
+          device_label?: string | null
+          expires_at: string
+          revoked?: boolean
+          session_id: string
+          user_id: string
+          verified_at?: string
+        }
+        Update: {
+          device_label?: string | null
+          expires_at?: string
+          revoked?: boolean
+          session_id?: string
+          user_id?: string
+          verified_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      is_admin: { Args: never; Returns: boolean }
+      is_session_verified: { Args: never; Returns: boolean }
       verify_record_passkey: {
         Args: { p_passkey?: string; p_record_id: string }
         Returns: {
@@ -294,9 +459,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
