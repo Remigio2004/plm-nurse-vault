@@ -1,114 +1,159 @@
-# NurseVault UI Mockup
+# NurseVault
 
-Build a static frontend-only demo of "NurseVault" — a digital records storage and retrieval system for Pamantasan ng Lungsod ng Maynila (PLM) College of Nursing. This is a UI/UX mockup only — NO backend, NO database, NO real file upload/storage. Use mock/dummy data and local React state only.
+NurseVault is a digital records portal for the Pamantasan ng Lungsod ng Maynila (PLM) College of Nursing. It is built to help the records office manage student document archives, track required files, and make document retrieval faster and more organized.
 
-BRANDING & THEME
+This project is a full frontend application with Supabase-backed authentication and document workflows. It includes secure sign-in, OTP verification, student master-file tracking, upload handling, browse-by-folder navigation, activity monitoring, and a responsive records dashboard.
 
-- Incorporate the PLM College of Nursing seal (logo asset will be provided) in the sidebar and login page
+## Overview
 
-- Color palette:
+NurseVault centralizes the College of Nursing records workflow around a single archive interface:
 
-  - Primary Green: #1B5E20 (deep forest green)
+- Secure staff login flow with email/password and OTP verification
+- Student master-file tracking across required document folders
+- Record upload workflow for academic and personal record documents
+- Browse experience by batch, classification, and folder hierarchy
+- Searchable student and record tables
+- Audit-style activity log and session timeout safeguards
+- PLM College of Nursing branding and green/gold visual system
 
-  - Secondary Green: #2E7D32 / #4CAF50 (accents, hover states)
+## Tech Stack
 
-  - Gold/Yellow: #C9A227 (used sparingly — active states, buttons, icon highlights)
+- React 19
+- TypeScript
+- Vite
+- TanStack Router
+- Tailwind CSS
+- shadcn/ui style components
+- Supabase for auth and data lifecycle
+- Edge functions for login, verification, and file access logic
 
-  - Background: White (#FFFFFF) and light gray (#F7F8F7) for cards/surfaces
+## Current Features
 
-  - Text: dark charcoal (#1A1A1A)
+### Authentication
 
-- Feel: professional school archival office — clean, trustworthy, not flashy. Rounded corners (rounded-xl), soft shadows, subtle hover animations
+- Login screen with institutional branding
+- Email/password sign-in through Supabase edge auth flow
+- OTP verification step before access to protected routes
+- Idle session timeout warning and automatic sign-out after inactivity
 
-- Font: clean modern sans-serif (Inter or similar)
+### Dashboard
 
-TECH STACK
+- Overview cards for total records, batches, and student coverage
+- Recent uploads panel showing the newest archived student documents
+- Quick navigation to upload or browse views
 
-- React + TypeScript + Tailwind CSS only
+### Upload workflow
 
-- Use React Bits (reactbits.dev) for polished reusable UI components (buttons, modals, loaders, transitions)
+- Student record filing with document selection and validation
+- Batch, classification, and folder-aware uploads
+- Document type checks and required-file enforcement
+- Student lookup and folder creation flow
 
-- No Supabase, no auth logic, no real API calls — everything runs on mock data stored in local component state or a static JSON file
+### Master File
 
-LOGIN PAGE (static/UI only)
+- Student requirement tracker by folder and document type
+- Search / filter by batch, classification, and completion status
+- Sort by student or missing requirement counts
+- Toggle to display missing files not yet uploaded
 
-- Centered card, white background, green/gold accents, PLM CON logo
+### Browse Folders
 
-- Email + password fields with a "Sign in" button
+- Folder hierarchy for batch → classification → student → document set
+- Records table view for quick filtering and inspection
+- Search across student name, number, and batch
 
-- Clicking "Sign in" just navigates to the Dashboard (no real authentication)
+### Activity / audit flow
 
-LAYOUT: SIDEBAR NAVIGATION
+- Event logging for student and document operations
+- Activity views for file and access actions
 
-- Left sidebar (white or light green background):
+## Project Structure
 
-  - PLM College of Nursing logo + "NurseVault" wordmark at top
+```text
+.
+├── src/
+│   ├── components/
+│   ├── data/
+│   ├── hooks/
+│   ├── integrations/
+│   ├── lib/
+│   ├── routes/
+│   ├── router.tsx
+│   └── styles.css
+├── supabase/
+│   ├── functions/
+│   └── migrations/
+├── public/
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── bun.lock
+├── components.json
+├── vercel.json
+└── README.md
+```
 
-  - Nav links: Dashboard, Upload Record, Browse Folders
+## Local Development
 
-  - Logout button (just navigates back to login page)
+Requirements:
 
-- Top bar: page title + search bar (can filter the mock data client-side)
+- Node.js 18+
+- npm
 
-PAGE 1: DASHBOARD
+Install dependencies:
 
-- Overview cards showing mock stats: total records (e.g. "128 Records"), total folders/batches (e.g. "6 Batches"), recent uploads list (mock array of 5 fake records)
+```bash
+npm install
+```
 
-- "Upload New Record" button (gold accent) linking to Upload page
+Start the dev server:
 
-PAGE 2: UPLOAD RECORD (form UI only, no real upload)
-
-- Form fields exactly as follows:
-
-  - Student Name (text input)
-
-  - Student Number (text input, e.g. 2024-0001)
-
-  - Batch (text input, e.g. "Batch 2024")
-
-  - Student Category (dropdown: HD Student, RLE Student)
-
-  - Status (dropdown: Regular, Irregular)
-
-  - Scanned Record (file input — drag-and-drop zone with file icon, accepts PDF/Word/Excel visually, but just stores the file name in local state, no actual upload)
-
-- On clicking "Upload Record": show a success toast/confirmation, then add the new record to the mock dataset in local state so it appears immediately in Browse Folders and the Records Table (simulate real behavior with fake data persistence during the session)
-
-PAGE 3: BROWSE FOLDERS
-
-- Use a hardcoded/mock dataset representing the auto-generated hierarchy: Batch → Student Category → Status → individual records
-
-- Include at least 3 mock batches (e.g. Batch 2023, Batch 2024, Batch 2025), each with HD Student / RLE Student categories, each with Regular / Irregular status folders, each containing a few mock student records
-
-- Breadcrumb navigation at top, clickable segments to go up/down the hierarchy
-
-- Grid or list view toggle
-
-- Clicking into the deepest folder shows individual student records (Student Name, Student Number, and a file icon representing the "scanned record")
-
-- Clicking a file opens a preview modal (can just show a placeholder PDF icon/mock preview, no real file rendering needed)
-
-- Include a "Records Table" tab/view: a searchable, filterable, sortable table of ALL mock records with columns: Student Name, Student Number, Batch, Category, Status, Upload Date — with a working search bar and filter dropdowns (filtering the mock data client-side)
-
-- Rename/delete buttons on folders/records can be present in the UI but just show a confirmation dialog and update local state (no real persistence needed beyond the session)
-
-MOCK DATA
-
-- Create a realistic dummy dataset (JSON or TS array) with at least 15–20 fake student records spread across the batches/categories/statuses described above, so the UI never looks empty
-
-IMPORTANT NOTES
-
-- Focus entirely on getting the UI/UX polished, responsive, and true to the green/gold/white PLM College of Nursing branding
-
-- No real authentication, no real file storage — this is purely a clickable, interactive prototype to validate the design and flow before backend integration
-
-## Development
-
-You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+```bash
 npm run dev
 ```
+
+Build the app:
+
+```bash
+npm run build
+```
+
+Run linting:
+
+```bash
+npm run lint
+```
+
+## Environment Variables
+
+Create a `.env` file in the project root with your Supabase configuration:
+
+```env
+VITE_SUPABASE_URL="https://your-project.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+SUPABASE_ANON_KEY="your-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+```
+
+These values are used by the frontend client and by the Supabase server-side/edge-function code.
+
+## Supabase Notes
+
+This repo includes Supabase edge functions under `supabase/functions/` for actions such as:
+
+- login/authentication
+- OTP verification
+- student document processing
+- file access checks
+
+If you are using a Supabase project, make sure the corresponding environment variables are configured in your deployed environment and local `.env` file.
+
+## Notes
+
+This application is designed as a records office management UI and is intended to evolve with real document storage and backend services. It is not a generic demo-only app anymore; it is structured around the actual NurseVault workflow and institutional routing.
+
+## License
+
+This project is for internal/educational use within the repository scope unless otherwise specified by the project owner.
