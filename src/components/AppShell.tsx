@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/upload", label: "Upload Record", icon: Upload },
-  { to: "/browse", label: "Browse Folders", icon: FolderTree },
   { to: "/master-file", label: "Master File", icon: ClipboardCheck },
+  { to: "/browse", label: "Browse Folders", icon: FolderTree },
   { to: "/activity", label: "Activity Log", icon: History },
 ] as const;
 

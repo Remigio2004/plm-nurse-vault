@@ -145,13 +145,6 @@ function ActivityPage() {
       description="Every upload, edit, deletion and file view is permanently recorded."
       searchPlaceholder="Search activity by student or user…"
     >
-      <div className="mb-4 flex items-center gap-2">
-        <Badge className="rounded-lg border-amber-200 bg-amber-50 text-amber-900">Legacy</Badge>
-        <p className="text-sm text-muted-foreground">
-          Compatibility view for the older records audit trail. New student-document activity is
-          handled in the Browse workflow.
-        </p>
-      </div>
       <Tabs defaultValue="log" className="space-y-5">
         <TabsList className="rounded-xl bg-muted p-1">
           <TabsTrigger
