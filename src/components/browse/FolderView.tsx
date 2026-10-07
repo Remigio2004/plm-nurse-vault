@@ -84,7 +84,7 @@ export function FolderView() {
   const students = useMemo<StudentWithRequirements[]>(() => data ?? [], [data]);
 
   const [rawPath, setPath] = useState<string[]>([]);
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, setView] = useState<"grid" | "list">("list");
   const [page, setPage] = useState(1);
   const replace = useReplaceDocument();
   const remove = useRemoveDocument();
@@ -99,7 +99,7 @@ export function FolderView() {
   const [editing, setEditing] = useState(false);
   const busy = replace.isPending || remove.isPending;
 
-  // Status is derived, so a folder can vanish while someone is inside it.
+  // A folder can vanish while someone is inside it (e.g. after editing a student).
   const path = useMemo(() => normalizePath(students, rawPath), [students, rawPath]);
   const query = search.trim();
   const isSearching = query.length > 0;
@@ -134,7 +134,7 @@ export function FolderView() {
 
   const openStudent = (student: StudentWithRequirements) => {
     setSearch("");
-    setPath([student.batch, student.classification, student.overall, student.id]);
+    setPath([student.batch, student.classification, student.id]);
   };
 
   const handleOpen = (doc: StudentDocument) => {
@@ -215,7 +215,7 @@ export function FolderView() {
     );
   }
 
-  const studentId = path[3];
+  const studentId = path[2];
   const currentStudent = studentId ? students.find((s) => s.id === studentId) : undefined;
 
   return (
@@ -261,23 +261,6 @@ export function FolderView() {
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Grid view"
-                onClick={() => setView("grid")}
-                className={cn(
-                  "h-8 w-8 rounded-lg",
-                  view === "grid" && "bg-primary-soft text-primary",
-                )}
-              >
-                <Grid2x2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Grid view</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
                 aria-label="List view"
                 onClick={() => setView("list")}
                 className={cn(
@@ -289,6 +272,23 @@ export function FolderView() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>List view</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Grid view"
+                onClick={() => setView("grid")}
+                className={cn(
+                  "h-8 w-8 rounded-lg",
+                  view === "grid" && "bg-primary-soft text-primary",
+                )}
+              >
+                <Grid2x2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Grid view</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -325,13 +325,13 @@ export function FolderView() {
               next.batch !== currentStudent.batch ||
               next.classification !== currentStudent.classification
             ) {
-              setPath([next.batch, next.classification]);
+              setPath([next.batch, next.classification, currentStudent.id]);
             }
           }}
         />
       )}
 
-      {/* Search results: students whose name, number, batch, classification, status, file name or document label match */}
+      {/* Search results: students whose name, number, batch, classification, file name or document label match */}
       {isSearching && (
         <>
           <div className={gridClass}>
@@ -372,12 +372,6 @@ export function FolderView() {
                       >
                         {student.classification}
                       </Badge>
-                      <Badge
-                        variant="outline"
-                        className="rounded-lg border-border text-muted-foreground"
-                      >
-                        {student.overall}
-                      </Badge>
                     </span>
                   </span>
                 </button>
@@ -397,7 +391,7 @@ export function FolderView() {
         </>
       )}
 
-      {/* Sub-folders: batch / classification / status / student / folder */}
+      {/* Sub-folders: batch / classification / student / folder */}
       {!isSearching && path.length < FILE_DEPTH && (
         <>
           <div className={gridClass}>
@@ -425,16 +419,6 @@ export function FolderView() {
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {[node.subtitle, countLabel(node)].filter(Boolean).join(" · ")}
                   </span>
-                  {node.missing ? (
-                    <span className="mt-1.5 block">
-                      <Badge
-                        variant="outline"
-                        className="rounded-lg border-destructive/40 text-destructive"
-                      >
-                        {node.missing} missing
-                      </Badge>
-                    </span>
-                  ) : null}
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
               </button>
@@ -461,7 +445,6 @@ export function FolderView() {
           <p className="text-xs text-muted-foreground">
             {FOLDER_LABELS[contents.folder]} · {contents.documents.length}{" "}
             {contents.documents.length === 1 ? "file" : "files"}
-            {contents.missing.length > 0 && ` · ${contents.missing.length} still missing`}
           </p>
           <div className={gridClass}>
             {pagedFiles.items.map((doc) => (

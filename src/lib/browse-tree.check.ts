@@ -69,20 +69,21 @@ assert.equal(pedro.overall, "Complete");
 assert.deepEqual(keys([]), ["2023", "2024"]);
 assert.equal(childNodes(all, [])[0]?.label, "Batch 2023");
 assert.deepEqual(keys(["2024"]), ["CN Graduate", "CN Honorable Dismissal"]);
-assert.deepEqual(keys(["2024", "CN Graduate"]), ["Incomplete"]);
-assert.deepEqual(keys(["2024", "CN Honorable Dismissal"]), ["Complete"]);
+// No status level: classification goes straight to the students
+assert.deepEqual(keys(["2024", "CN Graduate"]), ["s-juan"]);
+assert.deepEqual(keys(["2024", "CN Honorable Dismissal"]), ["s-maria"]);
 
-// Student level uses the id, and counts missing docs (9 academic + 1 others)
-const studentNodes = childNodes(all, ["2024", "CN Graduate", "Incomplete"]);
+// Student level uses the id and counts the student's files
+const studentNodes = childNodes(all, ["2024", "CN Graduate"]);
 assert.deepEqual(
   studentNodes.map((n) => n.key),
   ["s-juan"],
 );
-assert.equal(studentNodes[0]?.missing, 10);
+assert.equal(studentNodes[0]?.count, 0);
 
 // Folder counts: CN Graduate = 2, HD = 3
-assert.deepEqual(keys(["2024", "CN Graduate", "Incomplete", "s-juan"]), ["academic", "others"]);
-assert.deepEqual(keys(["2024", "CN Honorable Dismissal", "Complete", "s-maria"]), [
+assert.deepEqual(keys(["2024", "CN Graduate", "s-juan"]), ["academic", "others"]);
+assert.deepEqual(keys(["2024", "CN Honorable Dismissal", "s-maria"]), [
   "academic",
   "personal",
   "others",
@@ -95,18 +96,16 @@ const juanWithId = makeStudent("s-juan2", "Dela Cruz, Juan", "CN Graduate", [
 assert.equal(visibleFolders(juanWithId).length, 3);
 
 // Files level
-const contents = folderContents(all, [
-  "2024",
-  "CN Honorable Dismissal",
-  "Complete",
-  "s-maria",
-  "academic",
-]);
+const contents = folderContents(all, ["2024", "CN Honorable Dismissal", "s-maria", "academic"]);
 assert.equal(contents?.documents.length, 1);
-assert.equal(contents?.missing.length, 11);
 
-// Path cut when status moves away
-assert.deepEqual(normalizePath(all, ["2024", "CN Graduate", "Complete"]), ["2024", "CN Graduate"]);
+// Path cut when a segment no longer exists (student moved or removed)
+assert.deepEqual(normalizePath(all, ["2024", "CN Graduate", "s-gone"]), ["2024", "CN Graduate"]);
+assert.deepEqual(normalizePath(all, ["2024", "CN Graduate", "s-juan"]), [
+  "2024",
+  "CN Graduate",
+  "s-juan",
+]);
 
 // Search
 assert.equal(searchStudents(all, "santos").length, 1);

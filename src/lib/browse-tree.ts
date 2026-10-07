@@ -1,13 +1,13 @@
 // Browse Folders tree — derived from the Master File (students + student_documents).
 //
-//   Batch → Classification → Status → Student → Folder → files
+//   Batch → Classification → Student → Folder → files
 //
 // Nothing here is stored. A folder exists because a student/document exists,
 // so every upload shows up in Browse with no extra writes and no sync step:
 // Browse reads the same ["students"] query that Upload already invalidates.
 //
 // Path segments are plain strings, in this order:
-//   [batch, classification, status ("Complete" | "Incomplete"), studentId, folderKey]
+//   [batch, classification, studentId, folderKey]
 // The student segment is the student's id (not the name) so renaming a student
 // or two students sharing a name can't break the path.
 
@@ -16,26 +16,21 @@ import {
   DOCUMENT_TYPES,
   FOLDERS,
   FOLDER_LABELS,
-  documentsForFolder,
   foldersForClassification,
-  type DocumentType,
   type FolderKey,
 } from "@/data/document-catalog";
 import {
   CLASSIFICATIONS,
-  type OverallStatus,
   type StudentDocument,
   type StudentWithRequirements,
 } from "@/data/students";
 
-export const BROWSE_LEVELS = ["batch", "classification", "status", "student", "folder"] as const;
+export const BROWSE_LEVELS = ["batch", "classification", "student", "folder"] as const;
 export type BrowseLevel = (typeof BROWSE_LEVELS)[number];
 
 /** Path length at which the view shows files instead of sub-folders. */
 export const FILE_DEPTH = BROWSE_LEVELS.length;
 
-// Incomplete first — that's the folder the records office needs to work through.
-const STATUS_ORDER: string[] = ["Incomplete", "Complete"] satisfies OverallStatus[];
 const CLASSIFICATION_ORDER: string[] = [...CLASSIFICATIONS];
 
 export interface BrowseNode {
@@ -43,20 +38,16 @@ export interface BrowseNode {
   key: string;
   label: string;
   level: BrowseLevel;
-  /** Students for batch/classification/status folders; files for student/folder. */
+  /** Students for batch/classification folders; files for student/folder. */
   count: number;
   unit: "student" | "file";
   subtitle: string | null;
-  /** Expected documents not uploaded yet (student and folder levels only). */
-  missing: number | null;
 }
 
 export interface FolderContents {
   student: StudentWithRequirements;
   folder: FolderKey;
   documents: StudentDocument[];
-  /** Document types this folder still expects for the student's classification. */
-  missing: DocumentType[];
 }
 
 const byText = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
@@ -67,15 +58,14 @@ const rankOf = (order: string[], value: string) => {
 };
 
 function inScope(student: StudentWithRequirements, path: string[]): boolean {
-  const [batch, classification, status, studentId] = path;
+  const [batch, classification, studentId] = path;
   if (batch !== undefined && student.batch !== batch) return false;
   if (classification !== undefined && student.classification !== classification) return false;
-  if (status !== undefined && student.overall !== status) return false;
   if (studentId !== undefined && student.id !== studentId) return false;
   return true;
 }
 
-/** Students that sit under the given path (only the first four segments narrow it). */
+/** Students that sit under the given path (only the first three segments narrow it). */
 export function scopeStudents(
   students: StudentWithRequirements[],
   path: string[],
@@ -93,17 +83,6 @@ export function folderDocuments(
   return student.documents
     .filter((d) => d.folder === folder)
     .sort((a, b) => catalogIndex(a) - catalogIndex(b));
-}
-
-/** Document types the folder expects for this classification but has no file for. */
-export function missingDocumentTypes(
-  student: StudentWithRequirements,
-  folder: FolderKey,
-): DocumentType[] {
-  const have = new Set(
-    student.documents.filter((d) => d.folder === folder).map((d) => d.documentType),
-  );
-  return documentsForFolder(student.classification, folder).filter((t) => !have.has(t));
 }
 
 /**
@@ -135,15 +114,10 @@ function groupNodes(
     count,
     unit: "student",
     subtitle: null,
-    missing: null,
   })).sort((a, b) => compare(a.key, b.key));
 }
 
 function studentNode(student: StudentWithRequirements): BrowseNode {
-  const missing = visibleFolders(student).reduce(
-    (total, folder) => total + missingDocumentTypes(student, folder).length,
-    0,
-  );
   return {
     key: student.id,
     label: student.studentName,
@@ -151,7 +125,6 @@ function studentNode(student: StudentWithRequirements): BrowseNode {
     count: student.documents.length,
     unit: "file",
     subtitle: student.studentNumber ?? "No student no.",
-    missing,
   };
 }
 
@@ -163,7 +136,6 @@ function folderNode(student: StudentWithRequirements, folder: FolderKey): Browse
     count: student.documents.filter((d) => d.folder === folder).length,
     unit: "file",
     subtitle: null,
-    missing: missingDocumentTypes(student, folder).length,
   };
 }
 
@@ -194,21 +166,12 @@ export function childNodes(students: StudentWithRequirements[], path: string[]):
     );
   }
   if (path.length === 2) {
-    return groupNodes(
-      scoped,
-      "status",
-      (s) => s.overall,
-      (k) => k,
-      (a, b) => rankOf(STATUS_ORDER, a) - rankOf(STATUS_ORDER, b),
-    );
-  }
-  if (path.length === 3) {
     return scoped
       .map(studentNode)
       .sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
   }
 
-  // path.length === 4 → the student's own folders
+  // path.length === 3 → the student's own folders
   const student = scoped[0];
   if (!student) return [];
   return visibleFolders(student).map((folder) => folderNode(student, folder));
@@ -221,13 +184,12 @@ export function folderContents(
 ): FolderContents | null {
   if (path.length < FILE_DEPTH) return null;
   const student = scopeStudents(students, path)[0];
-  const folder = FOLDERS.find((f) => f === path[4]);
+  const folder = FOLDERS.find((f) => f === path[3]);
   if (!student || !folder) return null;
   return {
     student,
     folder,
     documents: folderDocuments(student, folder),
-    missing: missingDocumentTypes(student, folder),
   };
 }
 
@@ -240,10 +202,9 @@ export function pathLabels(students: StudentWithRequirements[], path: string[]):
 }
 
 /**
- * Cuts the path at the first segment that no longer exists. Needed because
- * status is derived: deleting a file can move a student from Complete to
- * Incomplete while someone is browsing inside the Complete folder. Returns the
- * same array when nothing changed.
+ * Cuts the path at the first segment that no longer exists, e.g. after a
+ * student's batch or classification is edited while someone is browsing inside
+ * it. Returns the same array when nothing changed.
  */
 export function normalizePath(students: StudentWithRequirements[], path: string[]): string[] {
   for (let i = 0; i < path.length; i++) {
@@ -253,7 +214,7 @@ export function normalizePath(students: StudentWithRequirements[], path: string[
   return path;
 }
 
-/** Name, student no., batch, classification, status, file names and document labels. */
+/** Name, student no., batch, classification, file names and document labels. */
 export function studentMatchesQuery(student: StudentWithRequirements, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -263,7 +224,6 @@ export function studentMatchesQuery(student: StudentWithRequirements, query: str
     student.batch,
     `batch ${student.batch}`,
     student.classification,
-    student.overall,
     ...student.documents.flatMap((d) => [
       d.fileName,
       DOCUMENT_INFO[d.documentType].label,
