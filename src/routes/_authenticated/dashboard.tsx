@@ -1,20 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowUpRight,
-  FileSpreadsheet,
-  FileText,
-  FolderTree,
-  Layers,
-  Upload,
-  Users,
-} from "lucide-react";
+import { ArrowUpRight, ClipboardCheck, FileText, Layers, Upload, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { StudentRecord } from "@/data/records";
-import { useRecords } from "@/lib/use-records";
+import { DOCUMENT_INFO, FOLDER_LABELS } from "@/data/document-catalog";
+import { useStudents } from "@/lib/use-students";
 import { useVault } from "@/lib/vault-store";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -36,42 +28,44 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-const fileIcon = (type: StudentRecord["fileType"]) =>
-  type === "xlsx" ? FileSpreadsheet : FileText;
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
 
 function DashboardPage() {
   const { search } = useVault();
-  const { data: records = [], isLoading, isError } = useRecords();
+  const { data: students = [], isLoading, isError } = useStudents();
 
-  const batches = Array.from(new Set(records.map((r) => r.batch)));
+  const batches = Array.from(new Set(students.map((s) => s.batch)));
+  const allDocs = students.flatMap((s) => s.documents.map((d) => ({ doc: d, student: s })));
   const query = search.trim().toLowerCase();
-  const recent = records
+  const recent = allDocs
     .filter(
-      (r) =>
+      ({ student: s }) =>
         !query ||
-        r.studentName.toLowerCase().includes(query) ||
-        r.studentNumber.toLowerCase().includes(query) ||
-        r.batch.toLowerCase().includes(query),
+        s.studentName.toLowerCase().includes(query) ||
+        (s.studentNumber ?? "").toLowerCase().includes(query) ||
+        s.batch.toLowerCase().includes(query),
     )
+    .sort((a, b) => new Date(b.doc.uploadedAt).getTime() - new Date(a.doc.uploadedAt).getTime())
     .slice(0, 5);
 
   const stats = [
     {
-      label: "Total Records",
-      value: `${records.length}`,
-      sub: "Documents stored in the vault",
+      label: "Total Files",
+      value: `${allDocs.length}`,
+      sub: "Documents stored in student folders",
       icon: FileText,
     },
     {
-      label: "Batches / Folders",
+      label: "Batches",
       value: `${batches.length}`,
-      sub: `${batches.length === 1 ? "batch" : "batches"} currently indexed`,
+      sub: `${batches.length === 1 ? "batch" : "batches"} on the Master File`,
       icon: Layers,
     },
     {
-      label: "Students Covered",
-      value: `${new Set(records.map((r) => r.studentNumber)).size}`,
-      sub: "Unique students archived so far",
+      label: "Students",
+      value: `${students.length}`,
+      sub: "Students on the Master File",
       icon: Users,
     },
   ];
@@ -116,7 +110,7 @@ function DashboardPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Add a scanned record</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              File a new student document into its batch, category and status folder.
+              File student documents into their Academic Records, Personal Records or Others folder.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -134,9 +128,9 @@ function DashboardPage() {
               variant="outline"
               className="h-11 rounded-xl border-primary/30 text-primary hover:bg-primary-soft"
             >
-              <Link to="/browse">
-                <FolderTree className="mr-2 h-4 w-4" />
-                Browse Folders
+              <Link to="/master-file">
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Open Master File
               </Link>
             </Button>
           </div>
@@ -149,7 +143,7 @@ function DashboardPage() {
               <p className="text-xs text-muted-foreground">Last five documents filed</p>
             </div>
             <Link
-              to="/browse"
+              to="/master-file"
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-secondary"
             >
               View all
@@ -169,11 +163,11 @@ function DashboardPage() {
                 </li>
               ))}
             {!isLoading &&
-              recent.map((record) => {
-                const Icon = fileIcon(record.fileType);
+              recent.map(({ doc, student }) => {
+                const Icon = FileText;
                 return (
                   <li
-                    key={record.id}
+                    key={doc.id}
                     className="flex flex-col gap-3 px-6 py-4 transition-colors hover:bg-surface sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex items-center gap-3">
@@ -182,24 +176,27 @@ function DashboardPage() {
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">
-                          {record.studentName}
+                          {student.studentName}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {record.studentNumber}
+                          {student.studentNumber ?? "No student no."} ·{" "}
+                          {DOCUMENT_INFO[doc.documentType].label}
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge className="rounded-lg bg-primary-soft text-primary hover:bg-primary-soft">
-                        {record.batch}
+                        Batch {student.batch}
                       </Badge>
                       <Badge
                         variant="outline"
                         className="rounded-lg border-border text-muted-foreground"
                       >
-                        {record.category}
+                        {FOLDER_LABELS[doc.folder]}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">{record.uploadDate}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(doc.uploadedAt)}
+                      </span>
                     </div>
                   </li>
                 );
@@ -208,7 +205,9 @@ function DashboardPage() {
               <li className="px-6 py-10 text-center text-sm text-muted-foreground">
                 {isError
                   ? "Records could not be loaded. Please try again."
-                  : "No records match your search."}
+                  : query
+                    ? "No uploads match your search."
+                    : "No uploads yet."}
               </li>
             )}
           </ul>

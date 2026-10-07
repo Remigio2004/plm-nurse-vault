@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpDown, FileText, FileX, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -95,7 +95,7 @@ function FolderFiles({
   }
 
   return (
-    <ul className="flex flex-col items-start gap-1.5">
+    <ul className="flex flex-col gap-1.5">
       {items.map((item) => (
         <Tooltip key={item.key}>
           <TooltipTrigger asChild>
