@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     try {
       await client.send({
         from: gmail,
-        to: gmail, // fixed recipient: hindi kumukuha ng email mula sa request
+        to: u.user.email!, 
         subject: `NurseVault verification code: ${code}`,
         content: `Your NurseVault verification code is ${code}\n\nExpires in 10 minutes.\n\nSign-in attempt: ${when} (PH)\nDevice: ${ua}\n\nIf this wasn't you, do not share this code and change the admin password.`,
       });
