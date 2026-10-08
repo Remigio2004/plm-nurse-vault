@@ -24,6 +24,7 @@ function buildCorsHeaders(origin: string | null) {
 const ALLOWED_ADMIN_IDS = [
   "68a6a069-5220-481c-b36a-3cc478169a36",
   "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
+  "3689e57f-7b68-44ce-a732-8eb85545ee36",
 ];
 
 async function sha1Hex(input: string): Promise<string> {
