@@ -282,6 +282,23 @@ export async function removeDocument(doc: StudentDocument): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Permanently deletes a student folder. The student's document rows are
+ * removed by the database cascade; the stored blobs are left in place,
+ * same as the soft-delete policy for single files.
+ */
+export async function deleteStudent(student: StudentWithRequirements): Promise<void> {
+  const { error } = await supabase.from("students").delete().eq("id", student.id);
+  if (error) throw error;
+}
+
+/** Permanently deletes several student folders at once (documents cascade). */
+export async function deleteStudents(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from("students").delete().in("id", ids);
+  if (error) throw error;
+}
+
 /** Documents that no longer belong to a student after a classification change. */
 export function classificationConflicts(
   documents: StudentDocument[],
