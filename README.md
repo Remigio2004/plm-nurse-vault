@@ -2,7 +2,7 @@
 
 NurseVault is a digital records portal for the Pamantasan ng Lungsod ng Maynila (PLM) College of Nursing. It is built to help the records office manage student document archives, track required files, and make document retrieval faster and more organized.
 
-This project is a full frontend application with Supabase-backed authentication and document workflows. It includes secure sign-in, OTP verification, student master-file tracking, upload handling, browse-by-folder navigation, activity monitoring, and a responsive records dashboard.
+This project is a full frontend application with Supabase-backed authentication and document workflows. It includes secure sign-in, OTP verification sent to the requesting user's email, student master-file tracking, upload handling, browse-by-folder navigation, student and folder deletion workflows, activity monitoring, and a responsive records dashboard.
 
 ## Overview
 
@@ -48,23 +48,33 @@ NurseVault centralizes the College of Nursing records workflow around a single a
 - Batch, classification, and folder-aware uploads
 - Document type checks and required-file enforcement
 - Student lookup and folder creation flow
+- Direct upload of missing document requirements from the student panel
 
 ### Master File
 
 - Student requirement tracker by folder and document type
 - Search / filter by batch, classification, and completion status
-- Sort by student or missing requirement counts
-- Toggle to display missing files not yet uploaded
+- Sort by student name or missing requirement counts, with sort direction tooltip
+- Missing files shown as "N/A" instead of "Not uploaded yet"
+- Student panel view with per-folder file list, missing-file highlighting, and inline upload action
+
+### Master File edits
+
+- Classification field is locked in the edit dialog because it determines the student folder structure
+- Batch folder delete and individual student delete are available in the browse view with confirmation dialogs and audit logging
 
 ### Browse Folders
 
 - Folder hierarchy for batch → classification → student → document set
 - Records table view for quick filtering and inspection
 - Search across student name, number, and batch
+- Folder-level select mode for batch deletion of batch, classification, or student folders
+- Folder sort toggle (A–Z / Z–A) in the browse view
 
 ### Activity / audit flow
 
 - Event logging for student and document operations
+- Audit logging for student deletions, batch folder deletions, and document uploads
 - Activity views for file and access actions
 
 ## Project Structure
