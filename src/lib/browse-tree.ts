@@ -13,9 +13,9 @@
 
 import {
   DOCUMENT_INFO,
-  DOCUMENT_TYPES,
   FOLDERS,
   FOLDER_LABELS,
+  compareDocumentTypes,
   foldersForClassification,
   type FolderKey,
 } from "@/data/document-catalog";
@@ -73,16 +73,14 @@ export function scopeStudents(
   return students.filter((s) => inScope(s, path));
 }
 
-const catalogIndex = (doc: StudentDocument) => DOCUMENT_TYPES.indexOf(doc.documentType);
-
-/** Files of one folder, in catalog order. */
+/** Files of one folder: A–Z by document name, "Others" always last. */
 export function folderDocuments(
   student: StudentWithRequirements,
   folder: FolderKey,
 ): StudentDocument[] {
   return student.documents
     .filter((d) => d.folder === folder)
-    .sort((a, b) => catalogIndex(a) - catalogIndex(b));
+    .sort((a, b) => compareDocumentTypes(a.documentType, b.documentType));
 }
 
 /**

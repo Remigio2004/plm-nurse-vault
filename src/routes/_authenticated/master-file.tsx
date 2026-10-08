@@ -1,10 +1,9 @@
 ﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, FileText, FileX, Pencil } from "lucide-react";
+import { ArrowUpDown, FileText, FileX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { PaginationBar } from "@/components/PaginationBar";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -25,9 +24,9 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DOCUMENT_INFO,
-  DOCUMENT_TYPES,
   FOLDERS,
   FOLDER_LABELS,
+  compareDocumentTypes,
   documentsForFolder,
   type FolderKey,
 } from "@/data/document-catalog";
@@ -83,11 +82,11 @@ function FolderFiles({
           .map((t) => ({
             key: `missing-${t}`,
             type: t,
-            title: `${DOCUMENT_INFO[t].label} — not uploaded yet`,
+            title: `${DOCUMENT_INFO[t].label} — N/A`,
             missing: true,
           }))
       : []),
-  ].sort((a, b) => DOCUMENT_TYPES.indexOf(a.type) - DOCUMENT_TYPES.indexOf(b.type));
+  ].sort((a, b) => compareDocumentTypes(a.type, b.type));
 
   // Missing files are hidden and nothing is uploaded yet.
   if (items.length === 0) {
@@ -211,7 +210,7 @@ function MasterFilePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Uploaded
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-destructive" /> Not uploaded yet
+                <span className="h-2.5 w-2.5 rounded-full bg-destructive" /> N/A
               </span>
               <span>
                 Showing {rangeStart}–{rangeEnd} of {rows.length} students
@@ -271,16 +270,25 @@ function MasterFilePage() {
                 <TableHeader>
                   <TableRow className="bg-surface hover:bg-surface">
                     <TableHead className="min-w-64">
-                      <button
-                        onClick={() => toggleSort("studentName")}
-                        className={cn(
-                          headerButton,
-                          sort.key === "studentName" ? "text-primary" : "text-muted-foreground",
-                        )}
-                      >
-                        Student Info
-                        <ArrowUpDown className="h-3.5 w-3.5" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => toggleSort("studentName")}
+                            className={cn(
+                              headerButton,
+                              sort.key === "studentName"
+                                ? "text-primary"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            Student Info
+                            <ArrowUpDown className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Sort alphabetically by name ({sort.key === "studentName" && sort.dir === "asc" ? "click for Z–A" : "A–Z"})
+                        </TooltipContent>
+                      </Tooltip>
                     </TableHead>
                     {FOLDERS.map((folder) => (
                       <TableHead key={folder} className="min-w-56">
@@ -301,16 +309,13 @@ function MasterFilePage() {
                         </Tooltip>
                       </TableHead>
                     ))}
-                    <TableHead className="w-20 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Action
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading &&
                     [0, 1, 2, 3, 4].map((i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 5 }).map((_, j) => (
+                        {Array.from({ length: 4 }).map((_, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-6 w-full" />
                           </TableCell>
@@ -352,34 +357,12 @@ function MasterFilePage() {
                             />
                           </TableCell>
                         ))}
-                        <TableCell className="text-right align-top">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                asChild
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                              >
-                                <Link
-                                  to="/upload"
-                                  search={{ student: student.studentName }}
-                                  aria-label="Edit record"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit record</TooltipContent>
-                          </Tooltip>
-                        </TableCell>
                       </TableRow>
                     ))}
                   {!isLoading && rows.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={4}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         {isError
