@@ -5,16 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DOCUMENT_INFO } from "@/data/document-catalog";
-import { CLASSIFICATIONS, formatStudentName, type StudentWithRequirements } from "@/data/students";
-import { classificationConflicts, errorMessage, logStudentAudit } from "@/lib/students-api";
+import { formatStudentName, type StudentWithRequirements } from "@/data/students";
+import { errorMessage, logStudentAudit } from "@/lib/students-api";
 import { useUpdateStudent } from "@/lib/use-students";
 import { capitalizeWords, formatStudentNumber } from "@/lib/utils";
 
@@ -35,7 +27,8 @@ export function EditStudentDialog({
   const [name, setName] = useState(student.studentName);
   const [number, setNumber] = useState(student.studentNumber ?? "");
   const [batch, setBatch] = useState(student.batch);
-  const [classification, setClassification] = useState(student.classification);
+  // Locked: changing it would move the student to a different folder.
+  const classification = student.classification;
 
   // Reset only when the dialog opens (not on every background refetch).
   useEffect(() => {
@@ -43,7 +36,7 @@ export function EditStudentDialog({
     setName(student.studentName);
     setNumber(student.studentNumber ?? "");
     setBatch(student.batch);
-    setClassification(student.classification);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, student.id]);
 
@@ -64,15 +57,7 @@ export function EditStudentDialog({
     }
     const nextNumber = number.trim();
 
-    const conflicts = classificationConflicts(student.documents, classification);
-    if (conflicts.length > 0) {
-      toast.error("Can't change classification", {
-        description: `These files don't belong to ${classification}: ${conflicts
-          .map((d) => DOCUMENT_INFO[d.documentType].label)
-          .join(", ")}. Delete them first.`,
-      });
-      return;
-    }
+
 
     type StudentFieldChange = { from: string | null; to: string | null };
     type StudentChangeKey = "studentName" | "studentNumber" | "batch" | "classification";
@@ -164,19 +149,17 @@ export function EditStudentDialog({
           </div>
 
           <div className="space-y-2 sm:col-span-2">
-            <Label>Student Classification</Label>
-            <Select value={classification} onValueChange={setClassification}>
-              <SelectTrigger className="h-11 rounded-xl sm:max-w-xs">
-                <SelectValue placeholder="Select classification" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {CLASSIFICATIONS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="editClassification">Student Classification</Label>
+            <Input
+              id="editClassification"
+              value={classification}
+              disabled
+              readOnly
+              className="h-11 rounded-xl sm:max-w-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              Classification can't be changed because it determines the folder structure.
+            </p>
           </div>
         </div>
 

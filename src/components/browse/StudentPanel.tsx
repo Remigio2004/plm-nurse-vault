@@ -1,7 +1,16 @@
-import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Eye, FileText, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Eye,
+  FileText,
+  FileX,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { EditStudentDialog } from "@/components/browse/EditStudentDialog";
 import { useDocumentActions } from "@/components/browse/useDocumentActions";
@@ -11,7 +20,23 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -19,15 +44,43 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DOCUMENT_INFO, FOLDER_LABELS, MAX_FILES_PER_STUDENT } from "@/data/document-catalog";
-import type { StudentWithRequirements } from "@/data/students";
+import {
+  DOCUMENT_INFO,
+  FOLDER_LABELS,
+  MAX_FILES_PER_STUDENT,
+  compareDocumentTypes,
+  documentsForFolder,
+  type FolderKey,
+} from "@/data/document-catalog";
+import type {
+  DocumentType,
+  StudentDocument,
+  StudentWithRequirements,
+} from "@/data/students";
 import { folderDocuments, visibleFolders } from "@/lib/browse-tree";
+import { errorMessage, logStudentAudit } from "@/lib/students-api";
+import { useDeleteStudent } from "@/lib/use-students";
 
 function formatBytes(size: number | null): string {
   if (size == null) return "";
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+interface PanelItem {
+  type: DocumentType;
+  doc: StudentDocument | null; // null = expected but not uploaded yet
+}
+
+/** Uploaded files + missing requirements of one folder, A–Z by document name. */
+function folderItems(student: StudentWithRequirements, folder: FolderKey): PanelItem[] {
+  const docs = folderDocuments(student, folder);
+  const have = new Set(docs.map((d) => d.documentType));
+  const missing = documentsForFolder(student.classification, folder).filter((t) => !have.has(t));
+  return [
+    ...docs.map((doc): PanelItem => ({ type: doc.documentType, doc })),
+    ...missing.map((type): PanelItem => ({ type, doc: null })),
+  ].sort((a, b) => compareDocumentTypes(a.type, b.type));
 }
 
 interface StudentPanelProps {
@@ -39,8 +92,33 @@ interface StudentPanelProps {
 /** Slide-in panel with one student's folders and files (right side). */
 export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps) {
   const actions = useDocumentActions();
+  const removeStudent = useDeleteStudent();
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const folders = student ? visibleFolders(student) : [];
+
+  const handleDeleteStudent = async () => {
+    if (!student) return;
+    setConfirmingDelete(false);
+    try {
+      await removeStudent.mutateAsync(student);
+      await logStudentAudit({
+        action: "delete",
+        summary: student.studentName,
+        details: {
+          module: "master-file",
+          student: student.studentName,
+          batch: student.batch,
+          classification: student.classification,
+          files: student.documents.length,
+        },
+      }).catch(() => undefined);
+      toast.success(`${student.studentName} deleted`);
+      onOpenChange(false);
+    } catch (err) {
+      toast.error("Could not delete student", { description: errorMessage(err) });
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -64,7 +142,7 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
               <p className="text-xs font-medium text-primary">
                 {student.documents.length} / {MAX_FILES_PER_STUDENT} files
               </p>
-              <div className="flex flex-wrap gap-2 pt-2">
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -74,10 +152,15 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                   <Pencil className="mr-1 h-3.5 w-3.5" />
                   Edit student
                 </Button>
-                <Button asChild variant="outline" size="sm" className="rounded-lg">
-                  <Link to="/master-file/$studentId" params={{ studentId: student.id }}>
-                    Open Master File
-                  </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={removeStudent.isPending}
+                  className="rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />
+                  Delete
                 </Button>
               </div>
             </SheetHeader>
@@ -85,7 +168,9 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
             <div className="p-6">
               <Accordion type="multiple" defaultValue={folders} className="space-y-3">
                 {folders.map((folder) => {
-                  const docs = folderDocuments(student, folder);
+                  const items = folderItems(student, folder);
+                  const missingCount = items.filter((i) => !i.doc).length;
+                  const uploadedCount = items.length - missingCount;
                   return (
                     <AccordionItem
                       key={folder}
@@ -96,84 +181,97 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                         <span className="flex flex-1 items-center justify-between pr-2">
                           <span>{FOLDER_LABELS[folder]}</span>
                           <span className="text-xs font-normal text-muted-foreground">
-                            {docs.length} file{docs.length === 1 ? "" : "s"}
+                            {uploadedCount} file{uploadedCount === 1 ? "" : "s"}
+                            {missingCount > 0 && ` · ${missingCount} missing`}
                           </span>
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>
-                        {docs.length === 0 ? (
+                        {items.length === 0 ? (
                           <p className="pb-1 text-xs text-muted-foreground">No files yet.</p>
                         ) : (
                           <ul className="space-y-2 pb-1">
-                            {docs.map((doc) => (
+                            {items.map(({ type, doc }) => (
                               <li
-                                key={doc.id}
-                                className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                                key={doc?.id ?? `missing-${type}`}
+                                className={
+                                  doc
+                                    ? "flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                                    : "flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"
+                                }
                               >
-                                <FileText className="h-4 w-4 shrink-0 text-gold-foreground" />
+                                {doc ? (
+                                  <FileText className="h-4 w-4 shrink-0 text-gold-foreground" />
+                                ) : (
+                                  <FileX className="h-4 w-4 shrink-0 text-destructive" />
+                                )}
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-sm font-medium text-foreground">
-                                    {DOCUMENT_INFO[doc.documentType].label}
+                                    {DOCUMENT_INFO[type].label}
                                   </span>
-                                  <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                                    {doc.fileName}
-                                  </span>
-                                  <span className="block text-[11px] text-muted-foreground">
-                                    {[
-                                      formatBytes(doc.fileSize),
-                                      format(new Date(doc.uploadedAt), "MMM d, yyyy"),
-                                    ]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                  </span>
+                                  {doc ? (
+                                    <>
+                                      <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                                        {doc.fileName}
+                                      </span>
+                                      <span className="block text-[11px] text-muted-foreground">
+                                        {[
+                                          formatBytes(doc.fileSize),
+                                          format(new Date(doc.uploadedAt), "MMM d, yyyy"),
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" · ")}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="block text-[11px] text-destructive">
+                                      N/A
+                                    </span>
+                                  )}
                                 </span>
-                                <span className="flex shrink-0 items-center gap-0.5">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="View file"
-                                        disabled={actions.busy}
-                                        onClick={() => actions.openFile(doc)}
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label="File actions"
+                                      disabled={actions.busy}
+                                      className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-xl">
+                                    {doc ? (
+                                      <>
+                                        <DropdownMenuItem onSelect={() => actions.openFile(doc)}>
+                                          <Eye className="mr-2 h-4 w-4" />
+                                          View
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onSelect={() => actions.startReplace(doc, student)}
+                                        >
+                                          <RefreshCw className="mr-2 h-4 w-4" />
+                                          Replace
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onSelect={() => actions.requestDelete(doc, student)}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onSelect={() => actions.startUpload(type, student)}
                                       >
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>View file</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="Replace file"
-                                        disabled={actions.busy}
-                                        onClick={() => actions.startReplace(doc, student)}
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
-                                      >
-                                        <RefreshCw className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Replace file</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="Delete file"
-                                        disabled={actions.busy}
-                                        onClick={() => actions.requestDelete(doc, student)}
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Delete file</TooltipContent>
-                                  </Tooltip>
-                                </span>
+                                        <Upload className="mr-2 h-4 w-4" />
+                                        Upload
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </li>
                             ))}
                           </ul>
@@ -192,6 +290,26 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
               onSaved={() => undefined}
             />
             {actions.dialogs}
+
+            <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+              <AlertDialogContent className="rounded-xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this student?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {`${student.studentName}'s folder and all ${student.documents.length} file${student.documents.length === 1 ? "" : "s"} in it will be removed. This can't be undone.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => void handleDeleteStudent()}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </SheetContent>

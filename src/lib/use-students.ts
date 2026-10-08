@@ -2,6 +2,8 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 
 import {
   createStudent,
+  deleteStudent,
+  deleteStudents,
   fetchStudentsWithRequirements,
   findOrCreateStudent,
   removeDocument,
@@ -10,7 +12,7 @@ import {
   uploadDocument,
   type NewStudentInput,
 } from "@/lib/students-api";
-import type { StudentDocument } from "@/data/students";
+import type { StudentDocument, StudentWithRequirements } from "@/data/students";
 
 export const studentsQuery = queryOptions({
   queryKey: ["students"],
@@ -72,6 +74,22 @@ export function useRemoveDocument() {
   const invalidate = useInvalidateStudents();
   return useMutation({
     mutationFn: (doc: StudentDocument) => removeDocument(doc),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useDeleteStudent() {
+  const invalidate = useInvalidateStudents();
+  return useMutation({
+    mutationFn: (student: StudentWithRequirements) => deleteStudent(student),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useDeleteStudents() {
+  const invalidate = useInvalidateStudents();
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteStudents(ids),
     onSuccess: () => invalidate(),
   });
 }

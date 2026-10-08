@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
+  ArrowUpDown,
+  Check,
   ChevronRight,
   Eye,
   FileText,
@@ -14,7 +16,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { EditStudentDialog } from "@/components/browse/EditStudentDialog";
+import { StudentPanel } from "@/components/browse/StudentPanel";
 import { PaginationBar } from "@/components/PaginationBar";
 import {
   AlertDialog,
@@ -51,7 +53,12 @@ import {
   openDocument,
   validateUploadFile,
 } from "@/lib/students-api";
-import { useRemoveDocument, useReplaceDocument, useStudents } from "@/lib/use-students";
+import {
+  useDeleteStudents,
+  useRemoveDocument,
+  useReplaceDocument,
+  useStudents,
+} from "@/lib/use-students";
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/vault-store";
 
@@ -97,7 +104,16 @@ export function FolderView() {
     student: StudentWithRequirements;
   } | null>(null);
   const [editing, setEditing] = useState(false);
-  const busy = replace.isPending || remove.isPending;
+  const [panelStudentId, setPanelStudentId] = useState<string | null>(null);
+  const removeStudents = useDeleteStudents();
+  const [selectMode, setSelectMode] = useState(false);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pendingFolders, setPendingFolders] = useState<{
+    names: string[];
+    students: StudentWithRequirements[];
+  } | null>(null);
+  const busy = replace.isPending || remove.isPending || removeStudents.isPending;
 
   // A folder can vanish while someone is inside it (e.g. after editing a student).
   const path = useMemo(() => normalizePath(students, rawPath), [students, rawPath]);
@@ -107,13 +123,26 @@ export function FolderView() {
 
   useEffect(() => {
     setPage(1);
-  }, [rawPath, query, view]);
+  }, [rawPath, query, view, sortDir]);
+
+  useEffect(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setSortDir("asc");
+  }, [rawPath, query]);
 
   const labels = useMemo(() => pathLabels(students, path), [students, path]);
-  const nodes = useMemo(
-    () => (isSearching ? [] : childNodes(students, path)),
-    [students, path, isSearching],
-  );
+  const nodes = useMemo(() => {
+    if (isSearching) return [];
+    const list = childNodes(students, path);
+    // Folders inside a student (Academic / Personal / Others) keep their fixed order, "Others" last.
+    if (path.length >= 3) return list;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...list].sort(
+      (a, b) =>
+        dir * a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true }),
+    );
+  }, [students, path, isSearching, sortDir]);
   const contents = useMemo(
     () => (isSearching ? null : folderContents(students, path)),
     [students, path, isSearching],
@@ -194,6 +223,63 @@ export function FolderView() {
       toast.success(`${label} removed`);
     } catch (err) {
       toast.error("Could not delete", { description: errorMessage(err) });
+    }
+  };
+
+  // Folder-level delete (batch / classification / student). Deeper levels are structure only.
+  const canSelect = !isSearching && path.length < 3;
+
+  const studentsUnder = (key: string) =>
+    students.filter((s) => {
+      if (path.length === 0) return s.batch === key;
+      if (path.length === 1) return s.batch === path[0] && s.classification === key;
+      return s.batch === path[0] && s.classification === path[1] && s.id === key;
+    });
+
+  const toggleSelected = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+
+  const requestFolderDelete = (keys: string[]) => {
+    const picked = nodes.filter((n) => keys.includes(n.key));
+    setPendingFolders({
+      names: picked.map((n) => n.label),
+      students: picked.flatMap((n) => studentsUnder(n.key)),
+    });
+  };
+
+  const confirmFolderDelete = async () => {
+    if (!pendingFolders) return;
+    const { names, students: targets } = pendingFolders;
+    setPendingFolders(null);
+    try {
+      await removeStudents.mutateAsync(targets.map((s) => s.id));
+      await logStudentAudit({
+        action: "delete",
+        summary: names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : ""),
+        details: {
+          module: "master-file",
+          folders: names,
+          students: targets.length,
+          files: targets.reduce((n, s) => n + s.documents.length, 0),
+        },
+      }).catch(() => undefined);
+      toast.success(
+        `${names.length} folder${names.length === 1 ? "" : "s"} deleted`,
+        { description: `${targets.length} student${targets.length === 1 ? "" : "s"} removed` },
+      );
+      exitSelectMode();
+    } catch (err) {
+      toast.error("Could not delete folders", { description: errorMessage(err) });
     }
   };
 
@@ -293,6 +379,77 @@ export function FolderView() {
         </div>
       </div>
 
+      {canSelect && nodes.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="mr-auto flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium text-foreground">Name</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={sortDir === "asc" ? "Sorted A to Z" : "Sorted Z to A"}
+                    onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                    className={cn(
+                      "h-8 w-8 rounded-lg text-muted-foreground hover:bg-transparent hover:text-foreground",
+                      sortDir === "desc" &&
+                        "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary",
+                    )}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{sortDir === "asc" ? "Sorted A–Z" : "Sorted Z–A"}</TooltipContent>
+              </Tooltip>
+            </div>
+            {selectMode && (
+              <span className="text-sm text-muted-foreground">{selected.size} selected</span>
+            )}
+          </div>
+          {selectMode ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg"
+                onClick={() =>
+                  setSelected(
+                    selected.size === nodes.length
+                      ? new Set()
+                      : new Set(nodes.map((n) => n.key)),
+                  )
+                }
+              >
+                {selected.size === nodes.length ? "Clear all" : "Select all"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selected.size === 0 || busy}
+                className="rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => requestFolderDelete([...selected])}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                Delete{selected.size > 0 && ` (${selected.size})`}
+              </Button>
+              <Button variant="ghost" size="sm" className="rounded-lg" onClick={exitSelectMode}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg"
+              onClick={() => setSelectMode(true)}
+            >
+              Select
+            </Button>
+          )}
+        </div>
+      )}
+
       {!isSearching && studentId && (
         <div className="flex justify-end gap-2">
           {currentStudent && (
@@ -314,22 +471,11 @@ export function FolderView() {
         </div>
       )}
 
-      {currentStudent && (
-        <EditStudentDialog
-          student={currentStudent}
-          open={editing}
-          onOpenChange={setEditing}
-          onSaved={(next) => {
-            // Batch / classification changes move the student to another folder.
-            if (
-              next.batch !== currentStudent.batch ||
-              next.classification !== currentStudent.classification
-            ) {
-              setPath([next.batch, next.classification, currentStudent.id]);
-            }
-          }}
-        />
-      )}
+      <StudentPanel
+        student={currentStudent ?? null}
+        open={editing && !!currentStudent}
+        onOpenChange={setEditing}
+      />
 
       {/* Search results: students whose name, number, batch, classification, file name or document label match */}
       {isSearching && (
@@ -395,34 +541,76 @@ export function FolderView() {
       {!isSearching && path.length < FILE_DEPTH && (
         <>
           <div className={gridClass}>
-            {pagedNodes.items.map((node) => (
-              <button
-                key={node.key}
-                onClick={() => setPath([...path, node.key])}
-                className={cn(
-                  "vault-card group text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
-                  view === "grid" ? "p-5" : "flex items-center gap-4 p-4",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft transition-colors group-hover:bg-gold-soft",
-                    view === "grid" && "mb-4",
+            {pagedNodes.items.map((node) => {
+              const checked = selected.has(node.key);
+              return (
+                <div key={node.key} className="group/folder relative">
+                  <button
+                    onClick={() =>
+                      selectMode ? toggleSelected(node.key) : setPath([...path, node.key])
+                    }
+                    aria-pressed={selectMode ? checked : undefined}
+                    className={cn(
+                      "vault-card group w-full text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
+                      view === "grid" ? "p-5" : "flex items-center gap-4 p-4",
+                      checked && "border-primary ring-2 ring-primary/30",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft transition-colors group-hover:bg-gold-soft",
+                        view === "grid" && "mb-4",
+                      )}
+                    >
+                      <Folder className="h-5 w-5 text-primary transition-colors group-hover:text-gold-foreground" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-foreground">
+                        {node.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {[node.subtitle, countLabel(node)].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    {selectMode ? (
+                      <span
+                        className={cn(
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background",
+                        )}
+                      >
+                        {checked && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    )}
+                  </button>
+
+                  {!selectMode && canSelect && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${node.label}`}
+                          disabled={busy}
+                          onClick={() => requestFolderDelete([node.key])}
+                          className={cn(
+                            "absolute h-8 w-8 rounded-lg text-muted-foreground transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:group-hover/folder:opacity-100",
+                            view === "grid" ? "right-3 top-3" : "right-11 top-1/2 -translate-y-1/2",
+                          )}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete folder</TooltipContent>
+                    </Tooltip>
                   )}
-                >
-                  <Folder className="h-5 w-5 text-primary transition-colors group-hover:text-gold-foreground" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-foreground">
-                    {node.label}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {[node.subtitle, countLabel(node)].filter(Boolean).join(" · ")}
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              </button>
-            ))}
+                </div>
+              );
+            })}
             {nodes.length === 0 && (
               <p className="vault-card p-10 text-center text-sm text-muted-foreground sm:col-span-full">
                 {path.length === 0
@@ -541,6 +729,8 @@ export function FolderView() {
         </>
       )}
 
+
+
       <input
         ref={replaceInputRef}
         type="file"
@@ -552,6 +742,45 @@ export function FolderView() {
           if (file) void handleReplaceFile(file);
         }}
       />
+
+      <AlertDialog
+        open={!!pendingFolders}
+        onOpenChange={(open) => !open && setPendingFolders(null)}
+      >
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingFolders?.names.length === 1
+                ? "Delete this folder?"
+                : `Delete ${pendingFolders?.names.length ?? 0} folders?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingFolders
+                ? `${pendingFolders.names.slice(0, 5).join(", ")}${
+                    pendingFolders.names.length > 5
+                      ? ` and ${pendingFolders.names.length - 5} more`
+                      : ""
+                  } will be permanently deleted, including ${pendingFolders.students.length} student${
+                    pendingFolders.students.length === 1 ? "" : "s"
+                  } and ${pendingFolders.students.reduce((n, s) => n + s.documents.length, 0)} file${
+                    pendingFolders.students.reduce((n, s) => n + s.documents.length, 0) === 1
+                      ? ""
+                      : "s"
+                  }. This can't be undone.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void confirmFolderDelete()}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent className="rounded-xl">
