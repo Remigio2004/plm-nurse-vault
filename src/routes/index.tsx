@@ -197,6 +197,15 @@ function LoginPage() {
               )}
             </Button>
           </form>
+
+          <div className="mt-4 text-center">
+            <a
+              href="/reset-password"
+              className="text-sm text-muted-foreground hover:text-primary hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
         </div>
       </div>
     </div>

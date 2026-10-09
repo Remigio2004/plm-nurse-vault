@@ -19,13 +19,15 @@ function buildCorsHeaders(origin: string | null) {
   };
 }
 
-// Only these Supabase Auth user IDs may call this function.
-// Keep this in sync with the RLS policies on records/audit_logs.
-const ALLOWED_ADMIN_IDS = [
-  "68a6a069-5220-481c-b36a-3cc478169a36",
-  "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
-  "3689e57f-7b68-44ce-a732-8eb85545ee36",
-];
+// Admin check is now driven by the admin_users table — no hardcoded UUIDs.
+async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
 
 async function sha1Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
@@ -70,16 +72,14 @@ Deno.serve(async (req) => {
     const user = userData.user;
     const sessionId = sessionIdFromJwt(authHeader.replace(/^Bearer /i, ""));
 
-    if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    if (!(await isAdmin(user.id, admin))) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Service-role client — bypasses RLS/column grants. This is the ONLY
-    // place in the whole app allowed to see storage_path/file_name/etc.
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     // Enforce the OTP second step server-side: the caller's session must be
     // present in verified_sessions, unrevoked, and unexpired. The React

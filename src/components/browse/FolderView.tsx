@@ -273,10 +273,9 @@ export function FolderView() {
           files: targets.reduce((n, s) => n + s.documents.length, 0),
         },
       }).catch(() => undefined);
-      toast.success(
-        `${names.length} folder${names.length === 1 ? "" : "s"} deleted`,
-        { description: `${targets.length} student${targets.length === 1 ? "" : "s"} removed` },
-      );
+      toast.success(`${names.length} folder${names.length === 1 ? "" : "s"} deleted`, {
+        description: `${targets.length} student${targets.length === 1 ? "" : "s"} removed`,
+      });
       exitSelectMode();
     } catch (err) {
       toast.error("Could not delete folders", { description: errorMessage(err) });
@@ -415,9 +414,7 @@ export function FolderView() {
                 className="rounded-lg"
                 onClick={() =>
                   setSelected(
-                    selected.size === nodes.length
-                      ? new Set()
-                      : new Set(nodes.map((n) => n.key)),
+                    selected.size === nodes.length ? new Set() : new Set(nodes.map((n) => n.key)),
                   )
                 }
               >
@@ -728,8 +725,6 @@ export function FolderView() {
           />
         </>
       )}
-
-
 
       <input
         ref={replaceInputRef}

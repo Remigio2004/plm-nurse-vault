@@ -6,9 +6,8 @@
 -- OTP-verified, unrevoked, unexpired session via is_session_verified()
 -- (already present in the live DB, SECURITY DEFINER).
 
--- Helper so the admin allowlist lives in one place instead of being
--- pasted into six policies. Keep in sync with ALLOWED_ADMIN_IDS in the
--- edge functions.
+-- Helper so the admin allowlist lives in one place (admin_users table).
+-- is_admin() now queries that table instead of using a hardcoded array.
 create or replace function public.is_admin()
 returns boolean
 language sql

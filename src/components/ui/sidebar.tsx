@@ -566,6 +566,11 @@ const SidebarMenuButton = React.forwardRef<
       };
     }
 
+    // Strip custom className so all sidebar tooltips keep the base consistent style
+    const { className: _className, ...tooltipRest } = tooltip as React.ComponentProps<
+      typeof TooltipContent
+    >;
+
     return (
       <Tooltip>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
@@ -573,7 +578,7 @@ const SidebarMenuButton = React.forwardRef<
           side="right"
           align="center"
           hidden={state !== "collapsed" || isMobile}
-          {...tooltip}
+          {...tooltipRest}
         />
       </Tooltip>
     );

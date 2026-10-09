@@ -17,13 +17,75 @@ function buildCorsHeaders(origin: string | null) {
   };
 }
 
-// Only these Supabase Auth user IDs may upload. Keep in sync with
-// file-access / check-duplicate.
-const ALLOWED_ADMIN_IDS = [
-  "68a6a069-5220-481c-b36a-3cc478169a36",
-  "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
-  "3689e57f-7b68-44ce-a732-8eb85545ee36",
-];
+// Admin check is now driven by the admin_users table — no hardcoded UUIDs.
+async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
+
+// Rate limiting: max uploads per minute per IP.
+const UPLOAD_RATE_LIMIT = 10;
+const UPLOAD_WINDOW_MS = 60_000;
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return "unknown";
+}
+
+async function checkRateLimit(
+  req: Request,
+  admin: ReturnType<typeof createClient>,
+): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
+  const ip = getClientIp(req);
+  if (ip === "unknown") return { ok: true };
+
+  const now = new Date();
+  const { data: current } = await admin
+    .from("rate_limits")
+    .select("attempts, reset_at")
+    .eq("key", ip)
+    .eq("action", "upload")
+    .maybeSingle();
+
+  if (!current) {
+    const resetAt = new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString();
+    await admin
+      .from("rate_limits")
+      .insert({ key: ip, action: "upload", attempts: 1, reset_at: resetAt });
+    return { ok: true };
+  }
+
+  const resetAt = new Date(current.reset_at);
+  if (now > resetAt) {
+    await admin.from("rate_limits").upsert(
+      {
+        key: ip,
+        action: "upload",
+        attempts: 1,
+        reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+      },
+      { onConflict: "key,action" },
+    );
+    return { ok: true };
+  }
+
+  if (current.attempts >= UPLOAD_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((resetAt.getTime() - now.getTime()) / 1000);
+    return { ok: false, retryAfterSec };
+  }
+
+  await admin
+    .from("rate_limits")
+    .update({ attempts: current.attempts + 1 })
+    .eq("key", ip)
+    .eq("action", "upload");
+  return { ok: true };
+}
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -45,6 +107,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME")!;
     const API_KEY = Deno.env.get("CLOUDINARY_API_KEY")!;
@@ -62,11 +125,27 @@ Deno.serve(async (req) => {
     }
     const user = userData.user;
 
-    if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    if (!(await isAdmin(user.id, admin))) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const rateCheck = await checkRateLimit(req, admin);
+    if (!rateCheck.ok) {
+      return new Response(
+        JSON.stringify({
+          error: "Too many uploads. Try again later.",
+          retryAfter: rateCheck.retryAfterSec,
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const incoming = await req.formData();

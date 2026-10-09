@@ -17,13 +17,68 @@ function buildCorsHeaders(origin: string | null) {
   };
 }
 
-// Only these Supabase Auth user IDs may call this function.
-// Keep in sync with file-access / check-duplicate / cloudinary-upload.
-const ALLOWED_ADMIN_IDS = [
-  "68a6a069-5220-481c-b36a-3cc478169a36",
-  "13877d07-25dc-4c1a-8fa5-38a9eb2fdde5",
-  "3689e57f-7b68-44ce-a732-8eb85545ee36",
-];
+// Admin check is now driven by the admin_users table — no hardcoded UUIDs.
+async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
+
+// Rate limiting for uploads: max uploads per minute per user.
+const UPLOAD_RATE_LIMIT = 5;
+const UPLOAD_WINDOW_MS = 60_000;
+
+async function checkRateLimit(
+  userId: string,
+  action: string,
+  admin: ReturnType<typeof createClient>,
+): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
+  const now = new Date();
+  const { data: current } = await admin
+    .from("rate_limits")
+    .select("attempts, reset_at")
+    .eq("key", userId)
+    .eq("action", action)
+    .maybeSingle();
+
+  if (!current) {
+    await admin.from("rate_limits").insert({
+      key: userId,
+      action,
+      attempts: 1,
+      reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+    });
+    return { ok: true };
+  }
+
+  const resetAt = new Date(current.reset_at);
+  if (now > resetAt) {
+    await admin.from("rate_limits").upsert(
+      {
+        key: userId,
+        action,
+        attempts: 1,
+        reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+      },
+      { onConflict: "key,action" },
+    );
+    return { ok: true };
+  }
+
+  if (current.attempts >= UPLOAD_RATE_LIMIT) {
+    return { ok: false, retryAfterSec: Math.ceil((resetAt.getTime() - now.getTime()) / 1000) };
+  }
+
+  await admin
+    .from("rate_limits")
+    .update({ attempts: current.attempts + 1 })
+    .eq("key", userId)
+    .eq("action", action);
+  return { ok: true };
+}
 
 // The Master File dual-path boundary: anything larger must go to Storage.
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -52,7 +107,7 @@ async function requireVerifiedAdmin(
     return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401 });
   }
   const user = userData.user;
-  if (!ALLOWED_ADMIN_IDS.includes(user.id)) {
+  if (!(await isAdmin(user.id, admin))) {
     return new Response(JSON.stringify({ error: "Not authorized" }), { status: 403 });
   }
 
@@ -115,6 +170,23 @@ Deno.serve(async (req) => {
     const user = gate;
 
     const contentType = req.headers.get("content-type") ?? "";
+
+    // Rate limit check for uploads.
+    if (contentType.includes("multipart/form-data")) {
+      const rateCheck = await checkRateLimit(user.id, "upload", admin);
+      if (!rateCheck.ok) {
+        return new Response(
+          JSON.stringify({
+            error: "Too many uploads. Try again later.",
+            retryAfter: rateCheck.retryAfterSec,
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
 
     // ---------------------------------------------------------------
     // Multipart upload — Cloudinary path for Master File documents.
