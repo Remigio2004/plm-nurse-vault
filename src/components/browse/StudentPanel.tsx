@@ -52,11 +52,7 @@ import {
   documentsForFolder,
   type FolderKey,
 } from "@/data/document-catalog";
-import type {
-  DocumentType,
-  StudentDocument,
-  StudentWithRequirements,
-} from "@/data/students";
+import type { DocumentType, StudentDocument, StudentWithRequirements } from "@/data/students";
 import { folderDocuments, visibleFolders } from "@/lib/browse-tree";
 import { errorMessage, logStudentAudit } from "@/lib/students-api";
 import { useDeleteStudent } from "@/lib/use-students";
@@ -224,9 +220,7 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                                       </span>
                                     </>
                                   ) : (
-                                    <span className="block text-[11px] text-destructive">
-                                      N/A
-                                    </span>
+                                    <span className="block text-[11px] text-destructive">N/A</span>
                                   )}
                                 </span>
                                 <DropdownMenu>

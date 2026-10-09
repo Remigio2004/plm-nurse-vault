@@ -36,9 +36,10 @@ function ResetPasswordPage() {
 
   const handleSendReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    const redirectUrl = typeof window !== "undefined"
-      ? `${window.location.origin}/reset-password?step=reset`
-      : "/reset-password?step=reset";
+    const redirectUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/reset-password?step=reset`
+        : "/reset-password?step=reset";
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
     });
@@ -83,11 +84,7 @@ function ResetPasswordPage() {
       <div className="flex min-h-screen items-center justify-center bg-surface px-4">
         <div className="w-full max-w-md">
           <div className="mb-6 flex flex-col items-center text-center">
-            <img
-              src={seal}
-              alt="PLM College of Nursing seal"
-              className="h-16 w-16"
-            />
+            <img src={seal} alt="PLM College of Nursing seal" className="h-16 w-16" />
             <h1 className="mt-2 text-xl font-semibold">Reset Password</h1>
           </div>
           <div className="vault-card p-7">
@@ -140,15 +137,11 @@ function ResetPasswordPage() {
     );
   }
 
-return (
+  return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
       <div className="vault-card w-full max-w-md p-7">
         <div className="mb-6 flex flex-col items-center text-center">
-          <img
-            src={seal}
-            alt="PLM College of Nursing seal"
-            className="h-16 w-16"
-          />
+          <img src={seal} alt="PLM College of Nursing seal" className="h-16 w-16" />
           <h1 className="mt-2 text-xl font-semibold">Forgot Password</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter your email to receive a reset link
@@ -157,7 +150,9 @@ return (
         <TooltipProvider delayDuration={200}>
           <form onSubmit={handleSendReset} className="space-y-4">
             <div>
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">
+                Email
+              </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Input
@@ -178,10 +173,7 @@ return (
           </form>
         </TooltipProvider>
         <div className="mt-4 text-center">
-          <a
-            href="/"
-            className="text-sm text-muted-foreground hover:text-primary hover:underline"
-          >
+          <a href="/" className="text-sm text-muted-foreground hover:text-primary hover:underline">
             Back to login
           </a>
         </div>

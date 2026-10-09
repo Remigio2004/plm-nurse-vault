@@ -21,7 +21,11 @@ function buildCorsHeaders(origin: string | null) {
 
 // Admin check is now driven by the admin_users table — no hardcoded UUIDs.
 async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
-  const { data } = await admin.from("admin_users").select("user_id").eq("user_id", userId).maybeSingle();
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
   return data !== null;
 }
 
@@ -77,7 +81,7 @@ Deno.serve(async (req) => {
       });
     }
 
-     // Enforce the OTP second step server-side: the caller's session must be
+    // Enforce the OTP second step server-side: the caller's session must be
     // present in verified_sessions, unrevoked, and unexpired. The React
     // route guard alone is not a security boundary.
     const { data: verified } = sessionId

@@ -276,9 +276,7 @@ function MasterFilePage() {
                             onClick={() => toggleSort("studentName")}
                             className={cn(
                               headerButton,
-                              sort.key === "studentName"
-                                ? "text-primary"
-                                : "text-muted-foreground",
+                              sort.key === "studentName" ? "text-primary" : "text-muted-foreground",
                             )}
                           >
                             Student Info
@@ -286,7 +284,11 @@ function MasterFilePage() {
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          Sort alphabetically by name ({sort.key === "studentName" && sort.dir === "asc" ? "click for Z–A" : "A–Z"})
+                          Sort alphabetically by name (
+                          {sort.key === "studentName" && sort.dir === "asc"
+                            ? "click for Z–A"
+                            : "A–Z"}
+                          )
                         </TooltipContent>
                       </Tooltip>
                     </TableHead>

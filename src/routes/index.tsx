@@ -182,32 +182,32 @@ function LoginPage() {
               </div>
             </div>
 
-<Button
-               type="submit"
-               disabled={loading}
-               className="h-11 w-full rounded-xl bg-primary text-primary-foreground shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-secondary hover:shadow-lift"
-             >
-               {loading ? (
-                 <span className="flex items-center gap-2">
-                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
-                   Signing in…
-                 </span>
-               ) : (
-                 "Sign in"
-               )}
-             </Button>
-           </form>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full rounded-xl bg-primary text-primary-foreground shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-secondary hover:shadow-lift"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
+                  Signing in…
+                </span>
+              ) : (
+                "Sign in"
+              )}
+            </Button>
+          </form>
 
-           <div className="mt-4 text-center">
-             <a
-               href="/reset-password"
-               className="text-sm text-muted-foreground hover:text-primary hover:underline"
-             >
-               Forgot password?
-             </a>
-           </div>
-         </div>
-       </div>
-     </div>
-   );
+          <div className="mt-4 text-center">
+            <a
+              href="/reset-password"
+              className="text-sm text-muted-foreground hover:text-primary hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

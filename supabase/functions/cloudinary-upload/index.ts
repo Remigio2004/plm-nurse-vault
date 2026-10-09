@@ -19,7 +19,11 @@ function buildCorsHeaders(origin: string | null) {
 
 // Admin check is now driven by the admin_users table — no hardcoded UUIDs.
 async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
-  const { data } = await admin.from("admin_users").select("user_id").eq("user_id", userId).maybeSingle();
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
   return data !== null;
 }
 
@@ -33,7 +37,10 @@ function getClientIp(req: Request): string {
   return "unknown";
 }
 
-async function checkRateLimit(req: Request, admin: ReturnType<typeof createClient>): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
+async function checkRateLimit(
+  req: Request,
+  admin: ReturnType<typeof createClient>,
+): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
   const ip = getClientIp(req);
   if (ip === "unknown") return { ok: true };
 
@@ -47,15 +54,22 @@ async function checkRateLimit(req: Request, admin: ReturnType<typeof createClien
 
   if (!current) {
     const resetAt = new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString();
-    await admin.from("rate_limits").insert({ key: ip, action: "upload", attempts: 1, reset_at: resetAt });
+    await admin
+      .from("rate_limits")
+      .insert({ key: ip, action: "upload", attempts: 1, reset_at: resetAt });
     return { ok: true };
   }
 
   const resetAt = new Date(current.reset_at);
   if (now > resetAt) {
     await admin.from("rate_limits").upsert(
-      { key: ip, action: "upload", attempts: 1, reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString() },
-      { onConflict: "key,action" }
+      {
+        key: ip,
+        action: "upload",
+        attempts: 1,
+        reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+      },
+      { onConflict: "key,action" },
     );
     return { ok: true };
   }
@@ -65,7 +79,11 @@ async function checkRateLimit(req: Request, admin: ReturnType<typeof createClien
     return { ok: false, retryAfterSec };
   }
 
-  await admin.from("rate_limits").update({ attempts: current.attempts + 1 }).eq("key", ip).eq("action", "upload");
+  await admin
+    .from("rate_limits")
+    .update({ attempts: current.attempts + 1 })
+    .eq("key", ip)
+    .eq("action", "upload");
   return { ok: true };
 }
 
@@ -118,10 +136,16 @@ Deno.serve(async (req) => {
 
     const rateCheck = await checkRateLimit(req, admin);
     if (!rateCheck.ok) {
-      return new Response(JSON.stringify({ error: "Too many uploads. Try again later.", retryAfter: rateCheck.retryAfterSec }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Too many uploads. Try again later.",
+          retryAfter: rateCheck.retryAfterSec,
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const incoming = await req.formData();

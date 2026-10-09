@@ -19,7 +19,11 @@ function buildCorsHeaders(origin: string | null) {
 
 // Admin check is now driven by the admin_users table — no hardcoded UUIDs.
 async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): Promise<boolean> {
-  const { data } = await admin.from("admin_users").select("user_id").eq("user_id", userId).maybeSingle();
+  const { data } = await admin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
   return data !== null;
 }
 
@@ -27,7 +31,11 @@ async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): 
 const UPLOAD_RATE_LIMIT = 5;
 const UPLOAD_WINDOW_MS = 60_000;
 
-async function checkRateLimit(userId: string, action: string, admin: ReturnType<typeof createClient>): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
+async function checkRateLimit(
+  userId: string,
+  action: string,
+  admin: ReturnType<typeof createClient>,
+): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
   const now = new Date();
   const { data: current } = await admin
     .from("rate_limits")
@@ -37,15 +45,25 @@ async function checkRateLimit(userId: string, action: string, admin: ReturnType<
     .maybeSingle();
 
   if (!current) {
-    await admin.from("rate_limits").insert({ key: userId, action, attempts: 1, reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString() });
+    await admin.from("rate_limits").insert({
+      key: userId,
+      action,
+      attempts: 1,
+      reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+    });
     return { ok: true };
   }
 
   const resetAt = new Date(current.reset_at);
   if (now > resetAt) {
     await admin.from("rate_limits").upsert(
-      { key: userId, action, attempts: 1, reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString() },
-      { onConflict: "key,action" }
+      {
+        key: userId,
+        action,
+        attempts: 1,
+        reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
+      },
+      { onConflict: "key,action" },
     );
     return { ok: true };
   }
@@ -54,7 +72,11 @@ async function checkRateLimit(userId: string, action: string, admin: ReturnType<
     return { ok: false, retryAfterSec: Math.ceil((resetAt.getTime() - now.getTime()) / 1000) };
   }
 
-  await admin.from("rate_limits").update({ attempts: current.attempts + 1 }).eq("key", userId).eq("action", action);
+  await admin
+    .from("rate_limits")
+    .update({ attempts: current.attempts + 1 })
+    .eq("key", userId)
+    .eq("action", action);
   return { ok: true };
 }
 
@@ -153,10 +175,16 @@ Deno.serve(async (req) => {
     if (contentType.includes("multipart/form-data")) {
       const rateCheck = await checkRateLimit(user.id, "upload", admin);
       if (!rateCheck.ok) {
-        return new Response(JSON.stringify({ error: "Too many uploads. Try again later.", retryAfter: rateCheck.retryAfterSec }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            error: "Too many uploads. Try again later.",
+            retryAfter: rateCheck.retryAfterSec,
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
     }
 
