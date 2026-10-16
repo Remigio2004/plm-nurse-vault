@@ -357,37 +357,35 @@ function UploadPage() {
                     </p>
                   )}
                   {documentsForFolder(effClassification, f).map((type) => {
-                    const isOthers = f === "others";
                     const info = DOCUMENT_INFO[type];
                     const alreadyOn = onFile.has(type);
                     const isChecked = type in selected;
                     const file = selected[type] ?? null;
                     const existingDoc = existing?.documents.find((d) => d.documentType === type);
-                    const showPicker = isChecked || alreadyOn || (isOthers && !alreadyOn);
+                    const showPicker = isChecked || alreadyOn;
                     return (
                       <div
                         key={type}
                         className="rounded-xl border border-border bg-surface px-3 py-2.5"
                       >
                         <div className="flex items-center gap-3 text-sm">
-                          {!isOthers &&
-                            (alreadyOn ? (
-                              <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
-                            ) : (
-                              <input
-                                id={`doc-${type}`}
-                                type="checkbox"
-                                className="h-4 w-4 accent-primary"
-                                checked={isChecked}
-                                onChange={(e) => toggle(type, e.target.checked)}
-                              />
-                            ))}
+                          {alreadyOn ? (
+                            <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
+                          ) : (
+                            <input
+                              id={`doc-${type}`}
+                              type="checkbox"
+                              className="h-4 w-4 accent-primary"
+                              checked={isChecked}
+                              onChange={(e) => toggle(type, e.target.checked)}
+                            />
+                          )}
                           <label htmlFor={`doc-${type}`} className="flex-1 text-foreground">
                             {info.label}
                           </label>
                         </div>
                         {showPicker && (
-                          <div className={`mt-2 flex items-center gap-2 ${isOthers ? "" : "pl-7"}`}>
+                          <div className="mt-2 flex items-center gap-2 pl-7">
                             <FileUp className="h-4 w-4 shrink-0 text-primary" />
                             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                               {file
@@ -413,7 +411,7 @@ function UploadPage() {
                                 {file || existingDoc ? "Change PDF" : "Upload PDF"}
                               </TooltipContent>
                             </Tooltip>
-                            {(isOthers || alreadyOn) && file && (
+                            {alreadyOn && file && (
                               <button
                                 type="button"
                                 aria-label="Remove file"
