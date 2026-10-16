@@ -308,6 +308,23 @@ export function classificationConflicts(
   return documents.filter((d) => !allowed.has(d.documentType));
 }
 
+/** Download a private PDF using the record's filename, not its storage ID. */
+export async function downloadDocument(doc: StudentDocument): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("student-docs", {
+    body: { action: "download", documentId: doc.id },
+  });
+  if (error) throw error;
+  if (!(data instanceof Blob)) throw new Error("No PDF returned");
+  const url = URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = doc.fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** Opens a document in a new tab through a short-lived signed link. */
 export async function openDocument(doc: StudentDocument): Promise<void> {
   const { data, error } = await supabase.functions.invoke("student-docs", {

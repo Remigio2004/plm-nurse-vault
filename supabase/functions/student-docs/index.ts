@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
     // ---------------------------------------------------------------
     const body = await req.json();
     const { action, documentId, cloudinaryPublicId, storagePath } = body as {
-      action: "open" | "delete-blob";
+      action: "open" | "download" | "delete-blob";
       documentId?: string;
       cloudinaryPublicId?: string | null;
       storagePath?: string | null;
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "open") {
+    if (action === "open" || action === "download") {
       if (!documentId) {
         return new Response(JSON.stringify({ error: "Missing documentId" }), {
           status: 400,
@@ -371,6 +371,24 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "Document has no file" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (action === "download") {
+        const file = await fetch(url);
+        if (!file.ok) {
+          return new Response(JSON.stringify({ error: "Could not download file" }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(file.body, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(doc.file_name)}`,
+            "Cache-Control": "no-store",
+          },
         });
       }
 

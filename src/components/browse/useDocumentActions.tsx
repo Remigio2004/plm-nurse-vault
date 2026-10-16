@@ -19,6 +19,7 @@ import {
   type StudentWithRequirements,
 } from "@/data/students";
 import {
+  downloadDocument,
   errorMessage,
   logStudentAudit,
   openDocument,
@@ -52,6 +53,12 @@ export function useDocumentActions() {
   const openFile = (doc: StudentDocument) => {
     void openDocument(doc).catch((err) =>
       toast.error("Could not open document", { description: errorMessage(err) }),
+    );
+  };
+
+  const downloadFile = (doc: StudentDocument) => {
+    void downloadDocument(doc).catch((err) =>
+      toast.error("Could not download document", { description: errorMessage(err) }),
     );
   };
 
@@ -189,5 +196,5 @@ export function useDocumentActions() {
     </>
   );
 
-  return { busy, openFile, startReplace, startUpload, requestDelete, dialogs };
+  return { busy, openFile, downloadFile, startReplace, startUpload, requestDelete, dialogs };
 }

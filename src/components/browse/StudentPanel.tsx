@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import {
+  Download,
   Eye,
   FileText,
   FileX,
@@ -241,6 +242,12 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                                         <DropdownMenuItem onSelect={() => actions.openFile(doc)}>
                                           <Eye className="mr-2 h-4 w-4" />
                                           View
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onSelect={() => actions.downloadFile(doc)}
+                                        >
+                                          <Download className="mr-2 h-4 w-4" />
+                                          Download
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                           onSelect={() => actions.startReplace(doc, student)}
