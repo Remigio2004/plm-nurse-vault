@@ -17,7 +17,7 @@ import {
 const STUDENT_COLUMNS =
   "id, student_name, student_number, batch, classification, created_at, updated_at";
 const DOCUMENT_COLUMNS =
-  "id, student_id, document_type, folder, file_name, file_size, uploaded_at, cloudinary_public_id, storage_path";
+  "id, student_id, document_type, folder, file_name, file_size, uploaded_at, cloudinary_public_id, storage_path, deleted_at";
 
 // Files up to 10 MB go to Cloudinary through the student-docs edge
 // function; anything larger goes straight to Supabase Storage.
@@ -44,6 +44,7 @@ interface DocumentRow {
   uploaded_at: string;
   cloudinary_public_id: string | null;
   storage_path: string | null;
+  deleted_at: string | null;
 }
 
 function mapStudent(row: StudentRow): Student {
@@ -69,6 +70,7 @@ function mapDocument(row: DocumentRow): StudentDocument {
     uploadedAt: row.uploaded_at,
     cloudinaryPublicId: row.cloudinary_public_id,
     storagePath: row.storage_path,
+    deletedAt: row.deleted_at,
   };
 }
 
@@ -92,6 +94,15 @@ export async function fetchStudentsWithRequirements(): Promise<StudentWithRequir
     const { folders, overall } = deriveFolders(row.classification, documents);
     return { ...mapStudent(row), documents, folders, overall };
   });
+}
+
+export async function restoreDocument(documentId: string): Promise<void> {
+  const { error } = await supabase
+    .from("student_documents")
+    .update({ deleted_at: null })
+    .eq("id", documentId)
+    .not("deleted_at", "is", null);
+  if (error) throw error;
 }
 
 export interface NewStudentInput {
@@ -278,7 +289,8 @@ export async function removeDocument(doc: StudentDocument): Promise<void> {
   const { error } = await supabase
     .from("student_documents")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", doc.id);
+    .eq("id", doc.id)
+    .is("deleted_at", null);
   if (error) throw error;
 }
 

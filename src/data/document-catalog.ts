@@ -1,7 +1,7 @@
 // Document catalog — single source of truth for the Master File folders
 // and the documents that can be filed inside them (spec: Revisions.pdf).
 // Keys are PascalCase and double as the file-name token.
-// Keep in sync with the CHECK constraint in the document_folders migration.
+// Keep in sync with the CHECK constraint in the student_documents migration.
 
 export const FOLDERS = ["academic", "personal", "others"] as const;
 export type FolderKey = (typeof FOLDERS)[number];
@@ -30,8 +30,8 @@ export const DOCUMENT_TYPES = [
   "CertificationOfCompletion",
   "DeliveryRoomCaseRecord",
   "SummaryOfOperatingRoomExperience",
-  "EvaluationChecklistForCommunityHealthNursing",
-  "AddAndDropRecords",
+  "ChecklistRecord",
+  "EnrollmentAdjustmentRecord",
   "HygieneChecklist",
   "SecondaryAcademicRecords",
   "IdentificationRecords",
@@ -68,11 +68,11 @@ export const DOCUMENT_INFO: Record<DocumentType, { label: string; folder: Folder
     label: "Summary of Operating Room Experience",
     folder: "academic",
   },
-  EvaluationChecklistForCommunityHealthNursing: {
-    label: "Evaluation Checklist for Community Health Nursing",
+  ChecklistRecord: {
+    label: "Checklist Record",
     folder: "academic",
   },
-  AddAndDropRecords: { label: "Add and Drop Records", folder: "academic" },
+  EnrollmentAdjustmentRecord: { label: "Enrollment Adjustment Record", folder: "academic" },
   HygieneChecklist: { label: "Hygiene Checklist", folder: "academic" },
   SecondaryAcademicRecords: { label: "Secondary Academic Records", folder: "academic" },
   IdentificationRecords: { label: "Identification Records", folder: "personal" },
@@ -107,7 +107,7 @@ const HONORABLE_DISMISSAL_ACADEMIC: DocumentType[] = [
   "StudentPermanentRecord",
   "ClassCard",
   "CertificateOfUHS",
-  "AddAndDropRecords",
+  "EnrollmentAdjustmentRecord",
   "HygieneChecklist",
   "SecondaryAcademicRecords",
 ];
@@ -121,7 +121,7 @@ const GRADUATE_ACADEMIC: DocumentType[] = [
   "CertificationOfCompletion",
   "DeliveryRoomCaseRecord",
   "SummaryOfOperatingRoomExperience",
-  "EvaluationChecklistForCommunityHealthNursing",
+  "ChecklistRecord",
 ];
 
 export function foldersForClassification(classification: string): FolderKey[] {

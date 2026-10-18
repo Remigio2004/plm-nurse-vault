@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AuditAction, AuditLogEntry, DeletedRecord } from "@/data/records";
+import { useStudents, useRestoreDocument } from "@/lib/use-students";
 import {
   useAuditLogs,
   useDeletedRecords,
@@ -98,6 +99,8 @@ function ActivityPage() {
   } = useDeletedRecords();
   const restoreMutation = useRestoreRecord();
   const purgeMutation = usePurgeRecord();
+  const { data: students } = useStudents();
+  const restoreDocument = useRestoreDocument();
   const [purgeTarget, setPurgeTarget] = useState<DeletedRecord | null>(null);
 
   const deletedEntries = useMemo(() => {
@@ -110,6 +113,16 @@ function ActivityPage() {
         r.batch.toLowerCase().includes(q),
     );
   }, [deletedData, search]);
+
+  const deletedDocuments = (students ?? []).flatMap((student) =>
+    student.documents
+      .filter((doc) => doc.deletedAt)
+      .filter((doc) => {
+        const q = search.trim().toLowerCase();
+        return !q || student.studentName.toLowerCase().includes(q) || doc.fileName.toLowerCase().includes(q);
+      })
+      .map((doc) => ({ ...doc, studentName: student.studentName })),
+  );
 
   const handleRestore = (record: DeletedRecord) => {
     void restoreMutation.mutateAsync(record.id).then(
@@ -265,6 +278,17 @@ function ActivityPage() {
 
           {!deletedLoading && !deletedError && (
             <ol className="flex flex-col gap-2">
+              {deletedDocuments.map((doc) => (
+                <li key={doc.id} className="vault-card flex items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{doc.studentName} · {doc.fileName}</p>
+                    <p className="text-xs text-muted-foreground">Recently deleted master-file document</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => restoreDocument.mutate(doc.id)}>
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Restore
+                  </Button>
+                </li>
+              ))}
               {deletedEntries.map((record) => (
                 <li
                   key={record.id}
@@ -303,7 +327,7 @@ function ActivityPage() {
                   </div>
                 </li>
               ))}
-              {deletedEntries.length === 0 && (
+              {deletedEntries.length === 0 && deletedDocuments.length === 0 && (
                 <li className="vault-card p-10 text-center text-sm text-muted-foreground">
                   Nothing in Recently Deleted.
                 </li>

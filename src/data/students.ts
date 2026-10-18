@@ -34,6 +34,7 @@ export interface StudentDocument {
   uploadedAt: string;
   cloudinaryPublicId: string | null;
   storagePath: string | null;
+  deletedAt?: string | null;
 }
 
 export interface FolderSummary {

@@ -41,3 +41,6 @@ skills/
 .agents/
 .freebuff/
 skills-lock.json
+
+# Local code knowledge graph
+graphify-out/

@@ -7,6 +7,7 @@ import {
   fetchStudentsWithRequirements,
   findOrCreateStudent,
   removeDocument,
+  restoreDocument,
   replaceDocument,
   updateStudent,
   uploadDocument,
@@ -76,6 +77,11 @@ export function useRemoveDocument() {
     mutationFn: (doc: StudentDocument) => removeDocument(doc),
     onSuccess: () => invalidate(),
   });
+}
+
+export function useRestoreDocument() {
+  const invalidate = useInvalidateStudents();
+  return useMutation({ mutationFn: restoreDocument, onSuccess: () => invalidate() });
 }
 
 export function useDeleteStudent() {
