@@ -5,6 +5,8 @@ import {
   deleteStudent,
   deleteStudents,
   fetchStudentsWithRequirements,
+  fetchStudentTrash,
+  manageStudentTrash,
   findOrCreateStudent,
   removeDocument,
   restoreDocument,
@@ -14,6 +16,7 @@ import {
   type NewStudentInput,
 } from "@/lib/students-api";
 import type { StudentDocument, StudentWithRequirements } from "@/data/students";
+import { retryUpload } from "@/lib/upload-queue";
 
 export const studentsQuery = queryOptions({
   queryKey: ["students"],
@@ -26,7 +29,30 @@ export function useStudents() {
 
 export function useInvalidateStudents() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["students"] });
+  return () =>
+    Promise.all(
+      ["students", "student-trash", "audit_logs"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ),
+    );
+}
+
+export function useStudentTrash() {
+  return useQuery({ queryKey: ["student-trash"], queryFn: fetchStudentTrash });
+}
+
+export function useManageStudentTrash() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: manageStudentTrash,
+    onSuccess: async () => {
+      await Promise.all(
+        ["students", "student-trash", "audit_logs"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      );
+    },
+  });
 }
 
 export function useCreateStudent() {
@@ -49,9 +75,16 @@ export function useFindOrCreateStudent() {
 
 export function useUploadDocument() {
   const invalidate = useInvalidateStudents();
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: uploadDocument,
-    onSuccess: () => invalidate(),
+    mutationKey: ["upload-documents"],
+    mutationFn: (params: Parameters<typeof uploadDocument>[0]) => {
+      const uploadId = params.uploadId ?? crypto.randomUUID();
+      return retryUpload(() => uploadDocument({ ...params, uploadId }));
+    },
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey: ["upload-documents"] }) === 1) void invalidate();
+    },
   });
 }
 
@@ -66,7 +99,10 @@ export function useUpdateStudent() {
 export function useReplaceDocument() {
   const invalidate = useInvalidateStudents();
   return useMutation({
-    mutationFn: replaceDocument,
+    mutationFn: (params: Parameters<typeof replaceDocument>[0]) => {
+      const uploadId = crypto.randomUUID();
+      return retryUpload(() => replaceDocument({ ...params, uploadId }));
+    },
     onSuccess: () => invalidate(),
   });
 }

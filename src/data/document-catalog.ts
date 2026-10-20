@@ -12,8 +12,6 @@ export const FOLDER_LABELS: Record<FolderKey, string> = {
   others: "Others",
 };
 
-export const MAX_FILES_PER_STUDENT = 15;
-
 export const DOCUMENT_TYPES = [
   "AdmissionSlip",
   "CertificateOfHonorableDismissal",

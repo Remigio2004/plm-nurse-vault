@@ -210,16 +210,6 @@ export function FolderView() {
     const label = DOCUMENT_INFO[doc.documentType].label;
     try {
       await remove.mutateAsync(doc);
-      await logStudentAudit({
-        action: "delete",
-        summary: student.studentName,
-        details: {
-          module: "master-file",
-          requirement: label,
-          folder: FOLDER_LABELS[doc.folder],
-          file: standardFileName(doc.documentType, student.studentName),
-        },
-      }).catch(() => undefined);
       toast.success(`${label} removed`);
     } catch (err) {
       toast.error("Could not delete", { description: errorMessage(err) });
@@ -263,16 +253,6 @@ export function FolderView() {
     setPendingFolders(null);
     try {
       await removeStudents.mutateAsync(targets.map((s) => s.id));
-      await logStudentAudit({
-        action: "delete",
-        summary: names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : ""),
-        details: {
-          module: "master-file",
-          folders: names,
-          students: targets.length,
-          files: targets.reduce((n, s) => n + s.documents.length, 0),
-        },
-      }).catch(() => undefined);
       toast.success(`${names.length} folder${names.length === 1 ? "" : "s"} deleted`, {
         description: `${targets.length} student${targets.length === 1 ? "" : "s"} removed`,
       });
@@ -755,13 +735,13 @@ export function FolderView() {
                     pendingFolders.names.length > 5
                       ? ` and ${pendingFolders.names.length - 5} more`
                       : ""
-                  } will be permanently deleted, including ${pendingFolders.students.length} student${
+                  } will move to Recently Deleted, including ${pendingFolders.students.length} student${
                     pendingFolders.students.length === 1 ? "" : "s"
                   } and ${pendingFolders.students.reduce((n, s) => n + s.documents.length, 0)} file${
                     pendingFolders.students.reduce((n, s) => n + s.documents.length, 0) === 1
                       ? ""
                       : "s"
-                  }. This can't be undone.`
+                  }. You can restore them within 30 days.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -783,7 +763,7 @@ export function FolderView() {
             <AlertDialogTitle>Delete this file?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingDelete
-                ? `${DOCUMENT_INFO[pendingDelete.doc.documentType].label} will be removed from ${pendingDelete.student.studentName}'s folder, and the requirement will show as missing.`
+                ? `${DOCUMENT_INFO[pendingDelete.doc.documentType].label} will move to Recently Deleted. You can restore it within 30 days.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -37,6 +37,18 @@ export interface StudentDocument {
   deletedAt?: string | null;
 }
 
+export interface StudentTrashEntry {
+  id: string;
+  kind: "student" | "document";
+  studentName: string;
+  studentNumber: string | null;
+  batch: string;
+  classification: string;
+  fileName: string | null;
+  fileCount: number;
+  deletedAt: string;
+}
+
 export interface FolderSummary {
   status: FolderStatus;
   count: number;
@@ -104,6 +116,11 @@ export function studentNameToken(studentName: string): string {
  */
 export function standardFileName(documentType: DocumentType, studentName: string): string {
   return `${documentFileToken(documentType)}_${studentNameToken(studentName)}.pdf`;
+}
+
+/** Stable suffix distinguishes attachments without depending on upload order. */
+export function attachmentFileName(type: DocumentType, studentName: string, id: string): string {
+  return standardFileName(type, studentName).replace(/\.pdf$/, `_${id}.pdf`);
 }
 
 /**

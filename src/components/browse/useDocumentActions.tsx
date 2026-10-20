@@ -26,6 +26,7 @@ import {
   validateUploadFile,
 } from "@/lib/students-api";
 import { useRemoveDocument, useReplaceDocument, useUploadDocument } from "@/lib/use-students";
+import { runUploadQueue } from "@/lib/upload-queue";
 
 interface Target {
   doc: StudentDocument;
@@ -65,43 +66,47 @@ export function useDocumentActions() {
   const startReplace = (doc: StudentDocument, student: StudentWithRequirements) => {
     uploadTarget.current = null;
     replaceTarget.current = { doc, student };
+    if (inputRef.current) inputRef.current.multiple = false;
     inputRef.current?.click();
   };
 
   const startUpload = (documentType: DocumentType, student: StudentWithRequirements) => {
     replaceTarget.current = null;
     uploadTarget.current = { documentType, student };
+    if (inputRef.current) inputRef.current.multiple = true;
     inputRef.current?.click();
   };
 
-  const handleUploadFile = async (file: File) => {
+  const handleUploadFiles = async (files: File[]) => {
     const target = uploadTarget.current;
     uploadTarget.current = null;
     if (!target) return;
     const { documentType, student } = target;
     const label = DOCUMENT_INFO[documentType].label;
-    try {
-      await validateUploadFile(file);
-      await upload.mutateAsync({
-        studentId: student.id,
-        studentName: student.studentName,
-        documentType,
-        file,
-      });
-      await logStudentAudit({
-        action: "upload",
-        summary: student.studentName,
-        details: {
-          module: "master-file",
-          requirement: label,
-          folder: FOLDER_LABELS[DOCUMENT_INFO[documentType].folder],
-          file: standardFileName(documentType, student.studentName),
-        },
-      }).catch(() => undefined);
-      toast.success(`${label} uploaded`);
-    } catch (err) {
-      toast.error("Upload failed", { description: errorMessage(err) });
-    }
+    await runUploadQueue(files, async (file) => {
+      try {
+        await validateUploadFile(file);
+        await upload.mutateAsync({
+          studentId: student.id,
+          studentName: student.studentName,
+          documentType,
+          file,
+        });
+        await logStudentAudit({
+          action: "upload",
+          summary: student.studentName,
+          details: {
+            module: "master-file",
+            requirement: label,
+            folder: FOLDER_LABELS[DOCUMENT_INFO[documentType].folder],
+            file: standardFileName(documentType, student.studentName),
+          },
+        }).catch(() => undefined);
+        toast.success(`${label} uploaded`);
+      } catch (err) {
+        toast.error("Upload failed", { description: errorMessage(err) });
+      }
+    });
   };
 
   const requestDelete = (doc: StudentDocument, student: StudentWithRequirements) => {
@@ -141,16 +146,6 @@ export function useDocumentActions() {
     const label = DOCUMENT_INFO[doc.documentType].label;
     try {
       await remove.mutateAsync(doc);
-      await logStudentAudit({
-        action: "delete",
-        summary: student.studentName,
-        details: {
-          module: "master-file",
-          requirement: label,
-          folder: FOLDER_LABELS[doc.folder],
-          file: standardFileName(doc.documentType, student.studentName),
-        },
-      }).catch(() => undefined);
       toast.success(`${label} removed`);
     } catch (err) {
       toast.error("Could not delete", { description: errorMessage(err) });
@@ -165,10 +160,11 @@ export function useDocumentActions() {
         accept="application/pdf,.pdf"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = Array.from(e.target.files ?? []);
+          const file = files[0];
           e.target.value = "";
           if (!file) return;
-          if (uploadTarget.current) void handleUploadFile(file);
+          if (uploadTarget.current) void handleUploadFiles(files);
           else void handleReplaceFile(file);
         }}
       />

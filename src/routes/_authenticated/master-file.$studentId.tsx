@@ -11,9 +11,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   DOCUMENT_INFO,
   FOLDER_LABELS,
-  MAX_FILES_PER_STUDENT,
   documentsForFolder,
   foldersForClassification,
+  compareDocumentTypes,
 } from "@/data/document-catalog";
 import {
   standardFileName,
@@ -22,6 +22,8 @@ import {
   type StudentWithRequirements,
 } from "@/data/students";
 import { logStudentAudit, openDocument, validateUploadFile } from "@/lib/students-api";
+import { runUploadQueue } from "@/lib/upload-queue";
+import { visibleFolders } from "@/lib/browse-tree";
 import {
   useRemoveDocument,
   useReplaceDocument,
@@ -73,8 +75,9 @@ function DocumentCard({
   busy: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
   const status: RequirementStatus = doc ? "Submitted" : "Missing";
-  const fileName = standardFileName(type, student.studentName);
+  const fileName = doc?.fileName ?? standardFileName(type, student.studentName);
 
   const handleFile = (file: File) => {
     if (doc) {
@@ -116,6 +119,18 @@ function DocumentCard({
       </p>
 
       <input
+        ref={addInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          void runUploadQueue(files, (file) => onUpload(type, file));
+        }}
+      />
+      <input
         ref={inputRef}
         type="file"
         accept="application/pdf,.pdf"
@@ -128,6 +143,14 @@ function DocumentCard({
       />
 
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => addInputRef.current?.click()}
+        >
+          Add PDFs
+        </Button>
         {doc ? (
           <>
             <Button
@@ -213,8 +236,7 @@ function StudentFolderPage() {
     );
   }
 
-  const docsByType = new Map(student.documents.map((d) => [d.documentType, d]));
-  const applicableFolders = foldersForClassification(student.classification);
+  const applicableFolders = visibleFolders(student);
   const totalFiles = student.documents.length;
   const initials = (student.studentName.split(",")[0] ?? "")
     .split(" ")
@@ -287,15 +309,6 @@ function StudentFolderPage() {
     }
     try {
       await remove.mutateAsync(doc);
-      await logStudentAudit({
-        action: "delete",
-        summary: student.studentName,
-        details: {
-          module: "master-file",
-          requirement: DOCUMENT_LABELS[doc.documentType],
-          file: standardFileName(doc.documentType, student.studentName),
-        },
-      });
       toast.success(`${DOCUMENT_LABELS[doc.documentType]} removed`);
     } catch (err) {
       toast.error("Could not delete", {
@@ -357,9 +370,7 @@ function StudentFolderPage() {
             <div className="w-full md:w-56">
               <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
                 <span>Files</span>
-                <span className="text-primary">
-                  {totalFiles} / {MAX_FILES_PER_STUDENT}
-                </span>
+                <span className="text-primary">{totalFiles}</span>
               </div>
               <div className="mt-2 flex gap-1.5">
                 {applicableFolders.map((folder) => (
@@ -386,15 +397,27 @@ function StudentFolderPage() {
                 </span>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {documentsForFolder(student.classification, folder).map((type) => (
-                  <DocumentCard
-                    key={type}
-                    student={student}
-                    type={type}
-                    doc={docsByType.get(type)}
-                    {...cardProps}
-                  />
-                ))}
+                {[
+                  ...new Set([
+                    ...documentsForFolder(student.classification, folder),
+                    ...student.documents
+                      .filter((d) => d.folder === folder)
+                      .map((d) => d.documentType),
+                  ]),
+                ]
+                  .sort(compareDocumentTypes)
+                  .flatMap((type) => {
+                    const documents = student.documents.filter((d) => d.documentType === type);
+                    return (documents.length ? documents : [undefined]).map((doc) => (
+                      <DocumentCard
+                        key={doc?.id ?? type}
+                        student={student}
+                        type={type}
+                        doc={doc}
+                        {...cardProps}
+                      />
+                    ));
+                  })}
               </div>
             </section>
           ))}

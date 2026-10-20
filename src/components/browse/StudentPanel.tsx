@@ -48,7 +48,6 @@ import {
 import {
   DOCUMENT_INFO,
   FOLDER_LABELS,
-  MAX_FILES_PER_STUDENT,
   compareDocumentTypes,
   documentsForFolder,
   type FolderKey,
@@ -99,17 +98,6 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
     setConfirmingDelete(false);
     try {
       await removeStudent.mutateAsync(student);
-      await logStudentAudit({
-        action: "delete",
-        summary: student.studentName,
-        details: {
-          module: "master-file",
-          student: student.studentName,
-          batch: student.batch,
-          classification: student.classification,
-          files: student.documents.length,
-        },
-      }).catch(() => undefined);
       toast.success(`${student.studentName} deleted`);
       onOpenChange(false);
     } catch (err) {
@@ -136,9 +124,7 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                   student.classification,
                 ].join(" · ")}
               </SheetDescription>
-              <p className="text-xs font-medium text-primary">
-                {student.documents.length} / {MAX_FILES_PER_STUDENT} files
-              </p>
+              <p className="text-xs font-medium text-primary">{student.documents.length} files</p>
               <div className="flex flex-wrap justify-end gap-2 pt-2">
                 <Button
                   variant="outline"
@@ -184,6 +170,20 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>
+                        <div className="flex flex-wrap gap-2 pb-3">
+                          {documentsForFolder(student.classification, folder).map((type) => (
+                            <Button
+                              key={type}
+                              variant="outline"
+                              size="sm"
+                              disabled={actions.busy}
+                              onClick={() => actions.startUpload(type, student)}
+                            >
+                              <Upload className="mr-1 h-3.5 w-3.5" /> Add{" "}
+                              {DOCUMENT_INFO[type].label}
+                            </Button>
+                          ))}
+                        </div>
                         {items.length === 0 ? (
                           <p className="pb-1 text-xs text-muted-foreground">No files yet.</p>
                         ) : (
@@ -297,7 +297,7 @@ export function StudentPanel({ student, open, onOpenChange }: StudentPanelProps)
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this student?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {`${student.studentName}'s folder and all ${student.documents.length} file${student.documents.length === 1 ? "" : "s"} in it will be removed. This can't be undone.`}
+                    {`${student.studentName}'s folder and its files will move to Recently Deleted. You can restore them within 30 days.`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

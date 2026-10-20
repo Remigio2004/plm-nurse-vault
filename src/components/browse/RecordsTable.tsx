@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { FOLDERS, MAX_FILES_PER_STUDENT, type FolderKey } from "@/data/document-catalog";
+import { FOLDERS, type FolderKey } from "@/data/document-catalog";
 import { CLASSIFICATIONS, type StudentWithRequirements } from "@/data/students";
 import { searchStudents } from "@/lib/browse-tree";
 import { useStudents } from "@/lib/use-students";
@@ -245,7 +245,7 @@ export function RecordsTable() {
                         {student.classification}
                       </TableCell>
                       <TableCell className="text-center text-sm text-foreground">
-                        {student.documents.length} / {MAX_FILES_PER_STUDENT}
+                        {student.documents.length}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">

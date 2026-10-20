@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { ArrowUpDown, FileText, FileX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -46,8 +46,16 @@ export const Route = createFileRoute("/_authenticated/master-file")({
       },
     ],
   }),
-  component: MasterFilePage,
+  component: MasterFileLayout,
 });
+
+function MasterFileLayout() {
+  const studentRoute = useMatch({
+    from: "/_authenticated/master-file/$studentId",
+    shouldThrow: false,
+  });
+  return studentRoute ? <Outlet /> : <MasterFilePage />;
+}
 
 // Expected + uploaded files of one folder, stacked vertically.
 // Uploaded = green chip, not yet uploaded = red chip (can be hidden).

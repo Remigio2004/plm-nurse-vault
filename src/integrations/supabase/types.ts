@@ -227,6 +227,7 @@ export type Database = {
       };
       students: {
         Row: {
+          deleted_at: string | null;
           batch: string;
           classification: string;
           created_at: string;
@@ -236,6 +237,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          deleted_at?: string | null;
           batch: string;
           classification: string;
           created_at?: string;
@@ -245,6 +247,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          deleted_at?: string | null;
           batch?: string;
           classification?: string;
           created_at?: string;
@@ -317,6 +320,11 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      manage_student_trash: {
+        Args: { p_action: string; p_id: string; p_kind: string };
+        Returns: string;
+      };
+      trash_student_folders: { Args: { p_ids: string[] }; Returns: undefined };
       is_admin: { Args: never; Returns: boolean };
       is_session_verified: { Args: never; Returns: boolean };
       verify_record_passkey: {
