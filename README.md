@@ -118,6 +118,7 @@ supabase functions deploy check-duplicate
 supabase functions deploy cloudinary-upload
 supabase functions deploy file-access
 supabase functions deploy student-docs
+supabase functions deploy trash-cleanup
 ```
 
 Set production secrets before deploying or invoking the functions:
@@ -138,6 +139,47 @@ https://your-production-domain/reset-password?step=reset
 ```
 
 The `admin_users` table must contain the intended administrator accounts before protected workflows are tested.
+
+### Attachments and trash retention
+
+There is no file-count cap. Each document type accepts multiple PDFs (20 MB per
+file); batches process three uploads concurrently and retry transient failures.
+Each queued file retains its document UUID across retries. Storage object IDs are
+independent of display filenames, so adding or replacing a PDF cannot overwrite
+another attachment.
+
+Files and student folders are soft-deleted for 30 days. Restoring a folder merges
+into a matching active student folder, preserving current files and individually
+deleted files' trash state. Permanent deletion and replacement enqueue durable
+storage-cleanup jobs in the same database transaction.
+
+After deploying the retention migration and `trash-cleanup`, configure its
+15-minute schedule (substitute the deployed project's URL):
+
+```bash
+supabase db query --linked "select public.configure_trash_cleanup('https://your-project.supabase.co');"
+```
+
+The scheduler token is generated and kept in Supabase Vault. The worker accepts
+that token or an OTP-verified admin session; it retries failed provider cleanup
+and never removes blobs still referenced by an active or restorable record.
+
+Revision checks:
+
+```bash
+bun src/lib/upload-queue.check.ts
+bun src/lib/browse-tree.check.ts
+supabase db query --linked --file supabase/tests/student_trash.sql
+supabase db query --linked --file supabase/tests/trash_retention.sql
+```
+
+Both SQL checks roll back their test data and audit/cleanup changes.
+
+For the live upload/browser check on this Windows workstation (Supabase CLI
+login and Chrome required), run `npm run build` followed by
+`bun src/lib/revisions-live.check.ts`. It creates an isolated temporary admin,
+uploads test PDFs to both providers, exercises the production build in Chrome,
+then removes its test account, folders, PDFs, audit fixtures and browser profile.
 
 ## Available Commands
 

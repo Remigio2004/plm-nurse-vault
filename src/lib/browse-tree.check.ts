@@ -114,3 +114,18 @@ assert.equal(searchStudents(all, "batch 2023").length, 1);
 assert.equal(searchStudents(all, "").length, 3);
 
 console.log("browse-tree: all checks passed");
+
+// Multiple PDFs of the same requirement must all remain visible and counted.
+const attachments = makeStudent(
+  "s-many",
+  "Many, Files",
+  "CN Honorable Dismissal",
+  Array.from({ length: 50 }, () => "SecondaryAcademicRecords"),
+);
+const attachedFiles = folderContents(
+  [attachments],
+  ["2024", "CN Honorable Dismissal", "s-many", "academic"],
+);
+assert.equal(attachedFiles?.documents.length, 50);
+assert.equal(new Set(attachedFiles?.documents.map((doc) => doc.id)).size, 50);
+assert.equal(childNodes([attachments], ["2024", "CN Honorable Dismissal"])[0]?.count, 50);
