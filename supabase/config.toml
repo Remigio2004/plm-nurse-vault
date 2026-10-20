@@ -1,1 +1,12 @@
 project_id = "ucxedbkdbareljsvbzee"
+
+# These functions validate the user's JWT and OTP session inside the handler.
+[functions.student-docs]
+verify_jwt = false
+
+[functions.file-access]
+verify_jwt = false
+
+# Authenticated in the handler: verified admin JWT or database-vault cron token.
+[functions.trash-cleanup]
+verify_jwt = false

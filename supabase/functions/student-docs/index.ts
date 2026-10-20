@@ -27,59 +27,6 @@ async function isAdmin(userId: string, admin: ReturnType<typeof createClient>): 
   return data !== null;
 }
 
-// Rate limiting for uploads: max uploads per minute per user.
-const UPLOAD_RATE_LIMIT = 5;
-const UPLOAD_WINDOW_MS = 60_000;
-
-async function checkRateLimit(
-  userId: string,
-  action: string,
-  admin: ReturnType<typeof createClient>,
-): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
-  const now = new Date();
-  const { data: current } = await admin
-    .from("rate_limits")
-    .select("attempts, reset_at")
-    .eq("key", userId)
-    .eq("action", action)
-    .maybeSingle();
-
-  if (!current) {
-    await admin.from("rate_limits").insert({
-      key: userId,
-      action,
-      attempts: 1,
-      reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
-    });
-    return { ok: true };
-  }
-
-  const resetAt = new Date(current.reset_at);
-  if (now > resetAt) {
-    await admin.from("rate_limits").upsert(
-      {
-        key: userId,
-        action,
-        attempts: 1,
-        reset_at: new Date(now.getTime() + UPLOAD_WINDOW_MS).toISOString(),
-      },
-      { onConflict: "key,action" },
-    );
-    return { ok: true };
-  }
-
-  if (current.attempts >= UPLOAD_RATE_LIMIT) {
-    return { ok: false, retryAfterSec: Math.ceil((resetAt.getTime() - now.getTime()) / 1000) };
-  }
-
-  await admin
-    .from("rate_limits")
-    .update({ attempts: current.attempts + 1 })
-    .eq("key", userId)
-    .eq("action", action);
-  return { ok: true };
-}
-
 // The Master File dual-path boundary: anything larger must go to Storage.
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -171,23 +118,6 @@ Deno.serve(async (req) => {
 
     const contentType = req.headers.get("content-type") ?? "";
 
-    // Rate limit check for uploads.
-    if (contentType.includes("multipart/form-data")) {
-      const rateCheck = await checkRateLimit(user.id, "upload", admin);
-      if (!rateCheck.ok) {
-        return new Response(
-          JSON.stringify({
-            error: "Too many uploads. Try again later.",
-            retryAfter: rateCheck.retryAfterSec,
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-    }
-
     // ---------------------------------------------------------------
     // Multipart upload — Cloudinary path for Master File documents.
     // ---------------------------------------------------------------
@@ -222,7 +152,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      const publicId = `students/${crypto.randomUUID()}.pdf`;
+      const uploadId = form.get("uploadId") ?? crypto.randomUUID();
+      if (
+        typeof uploadId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uploadId)
+      ) {
+        return new Response(JSON.stringify({ error: "Invalid upload ID" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const publicId = `students/${uploadId}.pdf`;
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const toSign = `public_id=${publicId}&timestamp=${timestamp}&type=authenticated`;
       const signature = await sha1Hex(toSign + API_SECRET);

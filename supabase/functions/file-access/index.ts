@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     const { data: verified } = sessionId
       ? await admin
           .from("verified_sessions")
-          .select("id")
+          .select("session_id")
           .eq("session_id", sessionId)
           .eq("user_id", user.id)
           .eq("revoked", false)
@@ -146,6 +146,12 @@ Deno.serve(async (req) => {
       const summary = `${row.student_name} (${row.student_number})`;
 
       if (action === "restore") {
+        if (Date.parse(row.deleted_at) <= Date.now() - 30 * 86400_000) {
+          return new Response(JSON.stringify({ error: "The 30-day restore period has expired." }), {
+            status: 410,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         const { error: updateError } = await admin
           .from("records")
           .update({ deleted_at: null })
